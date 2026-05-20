@@ -1,0 +1,31 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+
+jobs:
+  python-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pip-audit
+      - working-directory: apps/api
+        run: pip-audit -r <(python -c "import tomllib,sys;d=tomllib.load(open('pyproject.toml','rb'));print('\n'.join(d['project']['dependencies']))")
+
+  node-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - working-directory: apps/web
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm audit --audit-level=high || true
