@@ -3,7 +3,7 @@
 Each phase ships a slice that is **independently runnable and tested**. The previous
 phase's API contracts are immutable unless an ADR explicitly supersedes them.
 
-## Phase 1 — Foundations  ← CURRENT
+## Phase 1 — Foundations  ✓ shipped
 - Monorepo, Docker Compose dev stack
 - FastAPI app: config, logging, exceptions, request-id, CORS, metrics endpoint
 - Postgres + async SQLAlchemy + Alembic + initial migration
@@ -18,7 +18,7 @@ phase's API contracts are immutable unless an ADR explicitly supersedes them.
 - Pytest suite (unit + integration via testcontainers)
 - GitHub Actions: lint, type-check, test, build images
 
-## Phase 2 — Repository ingestion
+## Phase 2 — Repository ingestion  ← CURRENT
 - `repositories` domain: clone, snapshot, language detection
 - Tree-sitter parsers for ts, js, py, go, rust, java
 - Symbol extraction (functions, classes, imports)

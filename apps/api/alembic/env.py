@@ -16,6 +16,7 @@ from app.infrastructure.db.base import Base
 
 # Import models so they register on Base.metadata
 from app.domain.users import models as _users_models  # noqa: F401
+from app.domain.repositories import models as _repos_models  # noqa: F401
 
 config = context.config
 

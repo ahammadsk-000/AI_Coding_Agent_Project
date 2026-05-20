@@ -66,6 +66,20 @@ api-downgrade: ## Roll back one migration
 api-shell-py: ## IPython shell inside the api container
 	$(COMPOSE) exec api python -m IPython
 
+##@ Worker
+.PHONY: worker-sh worker-logs worker-restart flower
+worker-sh: ## Shell into the worker container
+	$(COMPOSE) exec worker sh
+
+worker-logs: ## Tail celery worker logs
+	$(COMPOSE) logs -f --tail=200 worker
+
+worker-restart: ## Restart the celery worker
+	$(COMPOSE) restart worker
+
+flower: ## Open the Flower dashboard URL
+	@echo "Flower: http://localhost:5555"
+
 ##@ Web
 .PHONY: web-sh web-dev web-build web-lint web-test
 web-sh: ## Shell into the web container

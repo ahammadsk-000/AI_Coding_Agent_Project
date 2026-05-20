@@ -65,9 +65,26 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     openai_default_model: str = "gpt-4o-mini"
 
-    # ---------- Embeddings (forward-compat) ----------
+    # ---------- Embeddings ----------
     embedding_provider: Literal["local", "openai"] = "local"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
+
+    # ---------- Ingestion (Phase 2) ----------
+    ingest_workspace_dir: str = "/var/lib/aca/workspace"
+    ingest_max_file_bytes: int = 1_048_576           # 1 MiB
+    ingest_max_repo_bytes: int = 536_870_912         # 512 MiB
+    ingest_chunk_target_tokens: int = 400
+    ingest_chunk_overlap_tokens: int = 64
+    ingest_embed_batch_size: int = 32
+    ingest_allowed_langs: list[str] = Field(
+        default_factory=lambda: [
+            "python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"
+        ]
+    )
+
+    # ---------- Celery (Phase 2) ----------
+    celery_broker_url: str | None = None
+    celery_result_backend: str | None = None
 
     # ---------- Rate limits ----------
     rate_limit_anon_per_min: int = 30
@@ -85,6 +102,21 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
+
+    @field_validator("ingest_allowed_langs", mode="before")
+    @classmethod
+    def _split_langs(cls, v: object) -> object:
+        if isinstance(v, str):
+            return [s.strip().lower() for s in v.split(",") if s.strip()]
+        return v
+
+    @property
+    def effective_broker(self) -> str:
+        return self.celery_broker_url or str(self.redis_url)
+
+    @property
+    def effective_result_backend(self) -> str:
+        return self.celery_result_backend or str(self.redis_url)
 
     @property
     def is_prod(self) -> bool:

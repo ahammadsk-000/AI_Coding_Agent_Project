@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from "react-router-dom";
-import { LogOut, LayoutDashboard, Sparkles } from "lucide-react";
+import { LogOut, LayoutDashboard, GitBranch, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -30,6 +30,7 @@ export function AppShell() {
         </div>
         <nav className="flex-1 px-2 space-y-1">
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
+          <NavItem to="/repositories" icon={<GitBranch className="h-4 w-4" />} label="Repositories" />
         </nav>
         <div className="p-3 border-t border-border space-y-2">
           <div className="text-xs text-muted-foreground truncate">

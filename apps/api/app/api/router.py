@@ -5,6 +5,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import auth as v1_auth
 from app.api.v1 import health as v1_health
+from app.api.v1 import repositories as v1_repos
 from app.api.v1 import users as v1_users
 
 api_router = APIRouter()
@@ -14,3 +15,4 @@ api_router = APIRouter()
 api_router.include_router(v1_health.router, prefix="/api/v1", tags=["health"])
 api_router.include_router(v1_auth.router, prefix="/api/v1/auth", tags=["auth"])
 api_router.include_router(v1_users.router, prefix="/api/v1/users", tags=["users"])
+api_router.include_router(v1_repos.router, prefix="/api/v1/repositories", tags=["repositories"])

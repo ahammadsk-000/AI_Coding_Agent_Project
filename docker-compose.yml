@@ -87,6 +87,52 @@ services:
       start_period: 30s
     networks: [aca]
 
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: dev
+    container_name: aca-worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-ai_coding_agent}
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      # Cache HF / sentence-transformers models inside a named volume across restarts
+      HF_HOME: /var/cache/huggingface
+      TRANSFORMERS_CACHE: /var/cache/huggingface
+      SENTENCE_TRANSFORMERS_HOME: /var/cache/huggingface
+    volumes:
+      - ./apps/api:/app
+      - hf_cache:/var/cache/huggingface
+      - ingest_workspace:/var/lib/aca/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    command: >
+      sh -c "celery -A app.tasks.celery_app:celery_app worker
+             --loglevel=INFO --concurrency=2 -Q default,ingest"
+    networks: [aca]
+
+  flower:
+    image: mher/flower:2.0
+    container_name: aca-flower
+    restart: unless-stopped
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      FLOWER_PORT: "5555"
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [aca]
+
   web:
     build:
       context: ./apps/web
@@ -124,6 +170,8 @@ volumes:
   postgres_data:
   redis_data:
   qdrant_data:
+  hf_cache:
+  ingest_workspace:
 
 networks:
   aca:

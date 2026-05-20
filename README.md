@@ -3,7 +3,8 @@
 An open, production-grade, Kubernetes-deployable AI coding platform — think Cursor /
 OpenHands / Continue.dev / Devin, built as an extensible monorepo.
 
-> **Status:** Phase 1 of 10 — foundations (auth, monorepo, infra) shipped.
+> **Status:** Phase 2 of 10 — repository ingestion (clone → tree-sitter parse →
+> AST-aware chunk → embeddings → Qdrant), Celery worker pool, SSE progress.
 > See [docs/PHASES.md](docs/PHASES.md) for the full roadmap.
 
 ## What it does (target state)
@@ -33,6 +34,7 @@ Then open:
 - Health   → http://localhost:8000/health
 - Metrics  → http://localhost:8000/metrics
 - Qdrant   → http://localhost:6333/dashboard
+- Flower (Celery) → http://localhost:5555
 
 Default seeded admin (created on first boot if `SEED_ADMIN=true`):
 - email: `admin@local.test`
