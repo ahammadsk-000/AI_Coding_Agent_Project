@@ -40,7 +40,7 @@ from app.domain.repositories.models import (
     RepositoryStatus,
 )
 from app.domain.repositories.repository import FileRepo, IngestJobRepo, RepositoryRepo
-from app.infrastructure.db.session import session_factory
+from app.infrastructure.db.session import dispose_engine, session_factory
 from app.infrastructure.embeddings import get_embedding_provider
 from app.infrastructure.git.clone import file_sha256, shallow_clone, workdir_for
 from app.infrastructure.parsers.chunker import chunk_file
@@ -207,6 +207,11 @@ def ingest_repository(self, repository_id: str, job_id: str) -> dict[str, Any]:
 
 
 async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str, Any]:
+    # Each Celery task call runs in its own asyncio.run() loop, but the module-level
+    # async engine carries pooled asyncpg connections bound to the previous task's
+    # (now-closed) loop. Dispose the pool so connections are recreated in this loop.
+    await dispose_engine()
+
     repo_uuid = uuid.UUID(repository_id)
     job_uuid = uuid.UUID(job_id)
     workspace = Path(settings.ingest_workspace_dir)
@@ -328,6 +333,9 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
             job_db = await jobs.get(job_uuid)
             if repo_db is not None:
                 repo_db.qdrant_collection = coll_name
+                # Persist the actual branch we cloned so re-ingests skip the fallback.
+                if clone.branch and clone.branch != "HEAD" and repo_db.default_branch != clone.branch:
+                    repo_db.default_branch = clone.branch
                 await repos.set_stats(repo_db, {**stats, "commit_sha": clone.commit_sha,
                                                 "duration_s": round(time.monotonic() - started, 2)})
                 await repos.set_status(repo_db, RepositoryStatus.ready)
@@ -341,6 +349,11 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
                 )
                 await jobs.mark_done(job_db)
             await session.commit()
+
+        from app.core import metrics as M
+        M.ingest_jobs_total.labels("succeeded").inc()
+        M.ingest_files_indexed_total.inc(stats["files_indexed"])
+        M.ingest_chunks_indexed_total.inc(stats["chunks_indexed"])
 
         _publish_sync(job_id, {"type": "done", "status": "succeeded", **stats})
         return {"ok": True, **stats}
@@ -357,5 +370,7 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
             if job_db is not None:
                 await jobs.mark_failed(job_db, error=str(e))
             await session.commit()
+        from app.core import metrics as M
+        M.ingest_jobs_total.labels("failed").inc()
         _publish_sync(job_id, {"type": "error", "status": "failed", "message": str(e)})
         return {"ok": False, "error": str(e)}

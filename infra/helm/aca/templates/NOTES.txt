@@ -1,0 +1,27 @@
+AI Coding Agent ({{ .Chart.AppVersion }}) deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Components:
+  - api      ({{ if .Values.api.autoscaling.enabled }}HPA {{ .Values.api.autoscaling.minReplicas }}-{{ .Values.api.autoscaling.maxReplicas }}{{ else }}{{ .Values.api.replicas }} replicas{{ end }})
+  - worker   ({{ if .Values.worker.autoscaling.enabled }}HPA {{ .Values.worker.autoscaling.minReplicas }}-{{ .Values.worker.autoscaling.maxReplicas }}{{ else }}{{ .Values.worker.replicas }} replicas{{ end }})
+  - web      ({{ .Values.web.replicas }} replicas)
+  - postgres ({{ if .Values.postgres.enabled }}bundled{{ else }}external{{ end }}), redis ({{ if .Values.redis.enabled }}bundled{{ else }}external{{ end }}), qdrant ({{ if .Values.qdrant.enabled }}bundled{{ else }}external{{ end }})
+
+Check rollout:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if .Values.ingress.enabled }}
+
+Access (via ingress):
+  Add to your hosts file:  127.0.0.1  {{ .Values.ingress.host }}
+  Frontend: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}/
+  API docs: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}/docs
+
+  (Requires an ingress controller, e.g. ingress-nginx, installed in the cluster.)
+{{- else }}
+
+No ingress. Port-forward to reach services:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "aca.fullname" . }}-web {{ .Values.web.containerPort }}:{{ .Values.web.containerPort }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "aca.fullname" . }}-api {{ .Values.api.containerPort }}:{{ .Values.api.containerPort }}
+{{- end }}
+
+IMPORTANT: override secrets.jwtSecret and secrets.postgresPassword for any non-local deployment.

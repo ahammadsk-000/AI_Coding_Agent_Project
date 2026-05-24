@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from git import GitCommandError, Repo
+from git.cmd import Git
 
 # Allow https, ssh-style (git@host:org/repo), or local /paths.
 _URL_RE = re.compile(
@@ -36,6 +37,26 @@ class CloneResult:
     workdir: Path           # path containing the working tree
     commit_sha: str         # HEAD commit sha
     bytes_on_disk: int      # size of the working tree (excluding .git)
+    branch: str             # branch actually cloned (may differ from requested)
+
+
+def detect_default_branch(url: str) -> str | None:
+    """Return the remote's HEAD branch (e.g. 'main' or 'master'), or None.
+
+    Uses `git ls-remote --symref` which reads a single ref without cloning.
+    """
+    try:
+        out = Git().ls_remote("--symref", url, "HEAD")
+    except GitCommandError:
+        return None
+    # Output looks like: "ref: refs/heads/master\tHEAD\n<sha>\tHEAD"
+    for line in out.splitlines():
+        if line.startswith("ref:"):
+            # "ref: refs/heads/master\tHEAD"
+            ref = line.split()[1]
+            if ref.startswith("refs/heads/"):
+                return ref[len("refs/heads/"):]
+    return None
 
 
 def validate_url(url: str) -> None:
@@ -77,13 +98,42 @@ def shallow_clone(
     # Clone into a tmp dir first so we never present a half-checkout to the world.
     with tempfile.TemporaryDirectory(prefix="aca-clone-", dir=str(dest.parent)) as tmp:
         tmp_path = Path(tmp) / "repo"
-        kwargs: dict[str, object] = {"depth": 1, "single_branch": True}
+
+        # If branch was explicitly requested, try it first; on "branch not found"
+        # fall back to the remote's actual HEAD branch.
+        attempts: list[str | None] = []
         if branch:
-            kwargs["branch"] = branch
-        try:
-            repo = Repo.clone_from(url, str(tmp_path), **kwargs)
-        except GitCommandError as e:
-            raise CloneError(f"git clone failed: {e.stderr or e}") from e
+            attempts.append(branch)
+        attempts.append(None)  # let git use the remote's default
+        seen: set[str | None] = set()
+
+        repo: Repo | None = None
+        last_err: GitCommandError | None = None
+        actual_branch: str | None = branch
+        for attempt in attempts:
+            if attempt in seen:
+                continue
+            seen.add(attempt)
+            shutil.rmtree(tmp_path, ignore_errors=True)
+            kwargs: dict[str, object] = {"depth": 1, "single_branch": True}
+            if attempt:
+                kwargs["branch"] = attempt
+            try:
+                repo = Repo.clone_from(url, str(tmp_path), **kwargs)
+                actual_branch = attempt or detect_default_branch(url) or "HEAD"
+                break
+            except GitCommandError as e:
+                last_err = e
+                stderr = (e.stderr or "").lower()
+                # Only swallow "branch not found" errors; auth/network errors stop us.
+                if "remote branch" in stderr and "not found" in stderr:
+                    continue
+                raise CloneError(f"git clone failed: {e.stderr or e}") from e
+
+        if repo is None:
+            raise CloneError(
+                f"git clone failed (no usable branch): {last_err.stderr if last_err else 'unknown'}"
+            ) from last_err
 
         size = _dir_size(tmp_path)
         if size > max_bytes:
@@ -97,7 +147,12 @@ def shallow_clone(
         shutil.rmtree(tmp_path / ".git", ignore_errors=True)
         shutil.move(str(tmp_path), str(dest))
 
-    return CloneResult(workdir=dest, commit_sha=sha, bytes_on_disk=_dir_size(dest))
+    return CloneResult(
+        workdir=dest,
+        commit_sha=sha,
+        bytes_on_disk=_dir_size(dest),
+        branch=actual_branch or "HEAD",
+    )
 
 
 def file_sha256(path: Path) -> str:

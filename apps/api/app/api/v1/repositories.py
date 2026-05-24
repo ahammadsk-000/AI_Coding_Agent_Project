@@ -15,13 +15,15 @@ import asyncio
 import json
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.dependencies import CurrentUser, DbSession
 from app.domain.repositories.schemas import (
+    CodeChunkPreview,
     IngestJobRead,
     RepositoryCreate,
+    RepositoryFileRead,
     RepositoryRead,
 )
 from app.domain.repositories.service import RepositoryService
@@ -51,8 +53,9 @@ async def get_repository(repo_id: UUID, user: CurrentUser, db: DbSession) -> Rep
 
 
 @router.delete("/{repo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_repository(repo_id: UUID, user: CurrentUser, db: DbSession) -> None:
+async def delete_repository(repo_id: UUID, user: CurrentUser, db: DbSession) -> Response:
     await RepositoryService(db).delete_mine(user, repo_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{repo_id}/ingest", response_model=IngestJobRead, status_code=status.HTTP_202_ACCEPTED)
@@ -67,6 +70,34 @@ async def enqueue_ingest(
 async def list_jobs(repo_id: UUID, user: CurrentUser, db: DbSession) -> list[IngestJobRead]:
     jobs = await RepositoryService(db).list_jobs(user, repo_id)
     return [IngestJobRead.model_validate(j) for j in jobs]
+
+
+@router.get("/{repo_id}/files", response_model=list[RepositoryFileRead])
+async def list_files(
+    repo_id: UUID, user: CurrentUser, db: DbSession
+) -> list[RepositoryFileRead]:
+    rows = await RepositoryService(db).list_files(user, repo_id)
+    return [
+        RepositoryFileRead(
+            id=f.id,
+            path=f.path,
+            language=f.language,
+            size_bytes=f.size_bytes,
+            lines=f.lines,
+            chunk_count=chunk_count,
+        )
+        for f, chunk_count in rows
+    ]
+
+
+@router.get(
+    "/{repo_id}/files/{file_id}/chunks", response_model=list[CodeChunkPreview]
+)
+async def list_file_chunks(
+    repo_id: UUID, file_id: UUID, user: CurrentUser, db: DbSession
+) -> list[CodeChunkPreview]:
+    chunks = await RepositoryService(db).list_file_chunks(user, repo_id, file_id)
+    return [CodeChunkPreview.model_validate(c) for c in chunks]
 
 
 @router.get("/{repo_id}/jobs/{job_id}", response_model=IngestJobRead)

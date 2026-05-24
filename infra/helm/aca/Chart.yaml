@@ -1,0 +1,13 @@
+apiVersion: v2
+name: aca
+description: AI Coding Agent Platform — full-stack Helm chart (api, worker, web + postgres/redis/qdrant)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - rag
+  - coding-agent
+maintainers:
+  - name: AI Coding Agent
+home: https://github.com/your-org/ai-coding-agent

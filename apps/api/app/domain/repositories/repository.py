@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.repositories.models import (
@@ -146,3 +146,35 @@ class FileRepo:
 
     async def flush(self) -> None:
         await self.session.flush()
+
+    # ---- read APIs for the detail page ----
+
+    async def list_files_with_chunk_counts(
+        self, repo_id: UUID
+    ) -> list[tuple[RepositoryFile, int]]:
+        """Files for a repo with their chunk counts; sorted by path."""
+        chunk_count = func.count(CodeChunk.id).label("chunk_count")
+        stmt = (
+            select(RepositoryFile, chunk_count)
+            .outerjoin(CodeChunk, CodeChunk.file_id == RepositoryFile.id)
+            .where(RepositoryFile.repository_id == repo_id)
+            .group_by(RepositoryFile.id)
+            .order_by(RepositoryFile.path)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [(row[0], int(row[1])) for row in rows]
+
+    async def get_file(self, file_id: UUID) -> RepositoryFile | None:
+        return (
+            await self.session.execute(
+                select(RepositoryFile).where(RepositoryFile.id == file_id)
+            )
+        ).scalar_one_or_none()
+
+    async def list_chunks_for_file(self, file_id: UUID) -> list[CodeChunk]:
+        stmt = (
+            select(CodeChunk)
+            .where(CodeChunk.file_id == file_id)
+            .order_by(CodeChunk.start_line)
+        )
+        return list((await self.session.execute(stmt)).scalars())

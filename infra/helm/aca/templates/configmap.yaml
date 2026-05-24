@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aca.fullname" . }}-config
+  labels:
+    {{- include "aca.labels" . | nindent 4 }}
+data:
+  # Connection URLs are derived from the in-cluster service names.
+  DATABASE_URL: {{ include "aca.databaseUrl" . | quote }}
+  REDIS_URL: {{ include "aca.redisUrl" . | quote }}
+  CELERY_BROKER_URL: {{ include "aca.redisUrl" . | quote }}
+  CELERY_RESULT_BACKEND: {{ include "aca.redisUrl" . | quote }}
+  QDRANT_URL: {{ include "aca.qdrantUrl" . | quote }}
+  {{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}

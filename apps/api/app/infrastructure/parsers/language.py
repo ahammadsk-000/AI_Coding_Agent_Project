@@ -39,6 +39,17 @@ _EXT_TO_LANG: dict[str, str] = {
     ".sh": "bash",
     ".bash": "bash",
     ".dockerfile": "dockerfile",
+    ".html": "html",
+    ".htm": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".sass": "scss",
+    ".less": "less",
+    ".xml": "xml",
+    ".txt": "text",
+    ".ini": "ini",
+    ".env": "dotenv",
+    ".cfg": "ini",
 }
 
 # Filenames whose extension is missing or non-indicative.

@@ -47,7 +47,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/readyz || exit 1"]
+      test: ["CMD-SHELL", "bash -c ': </dev/tcp/localhost/6333' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -65,10 +65,17 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-ai_coding_agent}
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
+      # Phase 5: name of the Docker volume holding cloned repos, so the api can
+      # mount it (read-only) into ephemeral sandbox containers it spawns.
+      SANDBOX_WORKSPACE_VOLUME: ai-coding-agent_ingest_workspace
     ports:
       - "8000:8000"
     volumes:
       - ./apps/api:/app
+      # Phase 5: Docker socket so the api can launch isolated sandbox containers.
+      # NOTE: this grants the api control of the host Docker daemon — acceptable
+      # for local single-user dev, NOT for multi-tenant production.
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,10 +110,14 @@ services:
       HF_HOME: /var/cache/huggingface
       TRANSFORMERS_CACHE: /var/cache/huggingface
       SENTENCE_TRANSFORMERS_HOME: /var/cache/huggingface
+      # Phase 8: aggregate prefork-child metrics into one scrape endpoint (:9100)
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
     volumes:
       - ./apps/api:/app
       - hf_cache:/var/cache/huggingface
       - ingest_workspace:/var/lib/aca/workspace
+    expose:
+      - "9100"
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,9 +125,7 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
-    command: >
-      sh -c "celery -A app.tasks.celery_app:celery_app worker
-             --loglevel=INFO --concurrency=2 -Q default,ingest"
+    command: ["celery", "-A", "app.tasks.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=2", "-Q", "default,ingest"]
     networks: [aca]
 
   flower:
@@ -166,12 +175,51 @@ services:
       - web
     networks: [aca]
 
+  # ---- Phase 8: observability ----
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: aca-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+    networks: [aca]
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: aca-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    networks: [aca]
+
 volumes:
   postgres_data:
   redis_data:
   qdrant_data:
   hf_cache:
   ingest_workspace:
+  prometheus_data:
+  grafana_data:
 
 networks:
   aca:

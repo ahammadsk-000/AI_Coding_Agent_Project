@@ -96,3 +96,15 @@ class QdrantService:
             query_filter=filters,
             with_payload=True,
         )
+
+    # ---------- point deletion (Phase 7) ----------
+    def delete_points(self, *, collection: str, point_ids: list[str]) -> None:
+        if not point_ids:
+            return
+        if not self._client.collection_exists(collection):
+            return
+        self._client.delete(
+            collection_name=collection,
+            points_selector=qm.PointIdsList(points=point_ids),
+            wait=False,
+        )

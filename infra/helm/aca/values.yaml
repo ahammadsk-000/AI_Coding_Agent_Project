@@ -1,0 +1,166 @@
+# =====================================================================
+# Default values for the AI Coding Agent platform chart.
+# Production-leaning defaults; override per-environment with -f values-*.yaml
+# =====================================================================
+
+global:
+  # Prefix applied to image names, e.g. "ghcr.io/your-org/". Empty = local images.
+  imageRegistry: ""
+  imagePullPolicy: IfNotPresent
+  # Set to "Never" when running against a local cluster that has the images
+  # already loaded (Docker Desktop K8s / kind), so it never tries to pull.
+  # imagePullPolicy: Never
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ---------- application images ----------
+images:
+  api: ai-coding-agent-api:latest
+  worker: ai-coding-agent-worker:latest
+  web: ai-coding-agent-web:latest
+
+# ---------- API service ----------
+api:
+  replicas: 2
+  containerPort: 8000
+  resources:
+    requests: { cpu: "100m", memory: "256Mi" }
+    limits: { cpu: "1000m", memory: "1Gi" }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+  # api runs migrations on boot then serves uvicorn
+  command:
+    - "sh"
+    - "-c"
+    - "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers"
+
+# ---------- Celery worker ----------
+worker:
+  replicas: 2
+  metricsPort: 9100
+  resources:
+    requests: { cpu: "200m", memory: "512Mi" }
+    limits: { cpu: "2000m", memory: "3Gi" }
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 80
+  command:
+    - "celery"
+    - "-A"
+    - "app.tasks.celery_app:celery_app"
+    - "worker"
+    - "--loglevel=INFO"
+    - "--concurrency=2"
+    - "-Q"
+    - "default,ingest"
+
+# ---------- Web (frontend) ----------
+web:
+  replicas: 2
+  containerPort: 3000
+  resources:
+    requests: { cpu: "50m", memory: "128Mi" }
+    limits: { cpu: "500m", memory: "512Mi" }
+  # The compose image runs the Vite dev server; for prod you'd build the
+  # `prod` target (nginx). Override images.web + containerPort accordingly.
+  command:
+    - "pnpm"
+    - "dev"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "3000"
+
+# ---------- bundled stateful dependencies ----------
+# For real production, prefer managed Postgres/Redis and a Qdrant operator.
+# These StatefulSets/Deployments are fine for dev/staging/single-node.
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  port: 5432
+  storage: 5Gi
+  storageClassName: ""   # "" = cluster default
+  resources:
+    requests: { cpu: "100m", memory: "256Mi" }
+    limits: { cpu: "1000m", memory: "1Gi" }
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  port: 6379
+  resources:
+    requests: { cpu: "50m", memory: "64Mi" }
+    limits: { cpu: "500m", memory: "256Mi" }
+
+qdrant:
+  enabled: true
+  image: qdrant/qdrant:v1.11.3
+  httpPort: 6333
+  grpcPort: 6334
+  storage: 5Gi
+  storageClassName: ""
+  resources:
+    requests: { cpu: "100m", memory: "256Mi" }
+    limits: { cpu: "1000m", memory: "2Gi" }
+
+# ---------- non-secret application config (becomes a ConfigMap) ----------
+config:
+  APP_ENV: production
+  LOG_LEVEL: INFO
+  LOG_FORMAT: json
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_WORKERS: "2"
+  API_CORS_ORIGINS: '["http://localhost:3000"]'
+  JWT_ALGORITHM: HS256
+  JWT_ACCESS_TTL_MIN: "15"
+  JWT_REFRESH_TTL_DAYS: "30"
+  PASSWORD_HASH_SCHEME: argon2
+  SEED_ADMIN: "false"
+  LLM_PROVIDER: ollama
+  OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+  OLLAMA_DEFAULT_MODEL: "llama3.2:latest"
+  OPENAI_BASE_URL: "https://api.openai.com/v1"
+  OPENAI_DEFAULT_MODEL: "gpt-4o-mini"
+  EMBEDDING_PROVIDER: local
+  EMBEDDING_MODEL: "BAAI/bge-small-en-v1.5"
+  INGEST_WORKSPACE_DIR: /var/lib/aca/workspace
+  INGEST_ALLOWED_LANGS: '["python","typescript","javascript","go","rust","java","cpp","c","html","css","markdown","json","yaml","toml","sql","bash","dockerfile","text"]'
+  PROMETHEUS_ENABLED: "true"
+  HF_HOME: /var/cache/huggingface
+
+# ---------- secrets (becomes a Secret; OVERRIDE THESE in prod) ----------
+# Provide via --set or a sealed secret / external-secrets in real deployments.
+secrets:
+  jwtSecret: "change-me-to-a-long-random-string-min-16"
+  postgresUser: app
+  postgresPassword: app
+  postgresDb: ai_coding_agent
+  openaiApiKey: ""
+
+# ---------- ingress ----------
+ingress:
+  enabled: true
+  className: nginx
+  host: aca.local
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: aca-tls
+
+# ---------- network policy ----------
+networkPolicy:
+  enabled: true
+
+serviceAccount:
+  create: true
+  name: ""

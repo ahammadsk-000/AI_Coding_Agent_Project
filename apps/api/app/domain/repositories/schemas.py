@@ -58,3 +58,25 @@ class IngestEvent(BaseModel):
     bytes_indexed: int | None = None
     message: str | None = None
     timestamp: datetime
+
+
+class RepositoryFileRead(BaseModel):
+    """One row in the Files tab of a repo's detail page."""
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    path: str
+    language: str | None
+    size_bytes: int
+    lines: int
+    chunk_count: int
+
+
+class CodeChunkPreview(BaseModel):
+    """A single chunk's text + position for the chunk-preview drawer."""
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    start_line: int
+    end_line: int
+    token_count: int
+    language: str | None
+    content: str

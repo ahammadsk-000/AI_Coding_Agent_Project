@@ -1,0 +1,56 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "aca.fullname" . }}
+  labels:
+    {{- include "aca.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # API + docs + metrics under /api, /docs, /health, /metrics
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "aca.fullname" . }}-api
+                port:
+                  number: {{ .Values.api.containerPort }}
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "aca.fullname" . }}-api
+                port:
+                  number: {{ .Values.api.containerPort }}
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "aca.fullname" . }}-api
+                port:
+                  number: {{ .Values.api.containerPort }}
+          # everything else → web
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "aca.fullname" . }}-web
+                port:
+                  number: {{ .Values.web.containerPort }}
+{{- end }}

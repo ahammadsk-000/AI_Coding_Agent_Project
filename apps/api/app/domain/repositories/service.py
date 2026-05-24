@@ -17,11 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.domain.repositories.models import (
+    CodeChunk,
     IngestJob,
     Repository,
+    RepositoryFile,
     RepositoryStatus,
 )
-from app.domain.repositories.repository import IngestJobRepo, RepositoryRepo
+from app.domain.repositories.repository import FileRepo, IngestJobRepo, RepositoryRepo
 from app.domain.repositories.schemas import RepositoryCreate
 from app.domain.users.models import User
 
@@ -31,6 +33,7 @@ class RepositoryService:
         self.session = session
         self.repos = RepositoryRepo(session)
         self.jobs = IngestJobRepo(session)
+        self.files = FileRepo(session)
 
     async def create(self, owner: User, data: RepositoryCreate) -> Repository:
         # Detect duplicate (owner, url) early — DB also enforces uq constraint
@@ -83,7 +86,11 @@ class RepositoryService:
         if merged is not None:
             merged.celery_task_id = async_result.id
             await self.session.flush()
-        return merged or job
+        # Refresh so server-default columns (created_at, updated_at) are populated
+        # in the Python instance before pydantic serializes it.
+        result = merged or job
+        await self.session.refresh(result)
+        return result
 
     async def get_job(self, owner: User, repo_id: UUID, job_id: UUID) -> IngestJob:
         repo = await self.get_mine(owner, repo_id)
@@ -95,6 +102,21 @@ class RepositoryService:
     async def list_jobs(self, owner: User, repo_id: UUID) -> list[IngestJob]:
         repo = await self.get_mine(owner, repo_id)
         return await self.jobs.list_for_repo(repo.id)
+
+    async def list_files(
+        self, owner: User, repo_id: UUID
+    ) -> list[tuple[RepositoryFile, int]]:
+        repo = await self.get_mine(owner, repo_id)
+        return await self.files.list_files_with_chunk_counts(repo.id)
+
+    async def list_file_chunks(
+        self, owner: User, repo_id: UUID, file_id: UUID
+    ) -> list[CodeChunk]:
+        repo = await self.get_mine(owner, repo_id)
+        file = await self.files.get_file(file_id)
+        if file is None or file.repository_id != repo.id:
+            raise NotFoundError("File not found in this repository")
+        return await self.files.list_chunks_for_file(file.id)
 
     def assert_owner(self, owner: User, repo: Repository) -> None:
         if repo.owner_id != owner.id and not owner.is_superuser:

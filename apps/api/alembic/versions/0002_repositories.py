@@ -20,17 +20,24 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # ---- enums ----
-    repository_source = postgresql.ENUM("git", "local", "github", name="repository_source")
-    repository_status = postgresql.ENUM("new", "ingesting", "ready", "failed", name="repository_status")
+    # create_type=False so subsequent op.create_table calls don't try to re-create the type
+    repository_source = postgresql.ENUM(
+        "git", "local", "github", name="repository_source", create_type=False
+    )
+    repository_status = postgresql.ENUM(
+        "new", "ingesting", "ready", "failed", name="repository_status", create_type=False
+    )
     ingest_status = postgresql.ENUM(
-        "queued", "running", "succeeded", "failed", "canceled", name="ingest_status"
+        "queued", "running", "succeeded", "failed", "canceled",
+        name="ingest_status", create_type=False,
     )
     symbol_kind = postgresql.ENUM(
         "function", "method", "class", "interface", "module", "variable", "other",
-        name="symbol_kind",
+        name="symbol_kind", create_type=False,
     )
+    bind = op.get_bind()
     for e in (repository_source, repository_status, ingest_status, symbol_kind):
-        e.create(op.get_bind(), checkfirst=True)
+        e.create(bind, checkfirst=True)
 
     # ---- repositories ----
     op.create_table(

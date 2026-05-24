@@ -1,0 +1,32 @@
+# Dev overrides — single replicas, no autoscaling, images already present in a
+# local cluster (Docker Desktop K8s / kind). Apply with:
+#   helm install aca ./infra/helm/aca -f ./infra/helm/aca/values-dev.yaml
+
+global:
+  imagePullPolicy: Never   # use locally-built images, never pull
+
+api:
+  replicas: 1
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+
+worker:
+  replicas: 1
+  autoscaling:
+    enabled: false
+
+web:
+  replicas: 1
+
+config:
+  APP_ENV: development
+  SEED_ADMIN: "true"
+  API_CORS_ORIGINS: '["http://localhost:3000","http://aca.local"]'
+
+networkPolicy:
+  enabled: false
+
+ingress:
+  host: aca.local

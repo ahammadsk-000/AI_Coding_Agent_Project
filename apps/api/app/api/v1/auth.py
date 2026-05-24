@@ -1,7 +1,7 @@
 """Auth endpoints: register, login, refresh, logout."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, Response, status
 
 from app.core.dependencies import CurrentUser, DbSession
 from app.domain.auth.schemas import LoginRequest, LoginResponse, RefreshRequest, TokenPair
@@ -49,9 +49,10 @@ async def refresh(payload: RefreshRequest, request: Request, db: DbSession) -> T
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     payload: RefreshRequest, request: Request, db: DbSession, user: CurrentUser
-) -> None:
+) -> Response:
     await AuthService(db).logout(
         raw_refresh=payload.refresh_token,
         user=user,
         ip=_client_ip(request),
     )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

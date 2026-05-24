@@ -8,12 +8,14 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# system deps: build essentials for asyncpg/psycopg, libpq for runtime, curl for health
+# system deps: build essentials for asyncpg/psycopg, libpq for runtime, curl for health,
+# git for the worker's repo-ingestion path (GitPython requires the git binary at import time)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         libpq-dev \
         curl \
         ca-certificates \
+        git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

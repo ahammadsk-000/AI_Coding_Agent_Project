@@ -1,5 +1,15 @@
 import { Outlet, NavLink } from "react-router-dom";
-import { LogOut, LayoutDashboard, GitBranch, Sparkles } from "lucide-react";
+import {
+  LogOut,
+  LayoutDashboard,
+  GitBranch,
+  Search,
+  MessageSquare,
+  Brain,
+  Terminal,
+  Github,
+  Sparkles,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -31,6 +41,11 @@ export function AppShell() {
         <nav className="flex-1 px-2 space-y-1">
           <NavItem to="/dashboard" icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
           <NavItem to="/repositories" icon={<GitBranch className="h-4 w-4" />} label="Repositories" />
+          <NavItem to="/search" icon={<Search className="h-4 w-4" />} label="Search" />
+          <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4" />} label="Chat" />
+          <NavItem to="/memory" icon={<Brain className="h-4 w-4" />} label="Memory" />
+          <NavItem to="/sandbox" icon={<Terminal className="h-4 w-4" />} label="Sandbox" />
+          <NavItem to="/github" icon={<Github className="h-4 w-4" />} label="GitHub" />
         </nav>
         <div className="p-3 border-t border-border space-y-2">
           <div className="text-xs text-muted-foreground truncate">

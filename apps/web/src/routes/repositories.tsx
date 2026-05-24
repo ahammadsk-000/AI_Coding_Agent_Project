@@ -18,13 +18,20 @@ export function RepositoriesPage() {
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [branch, setBranch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useMutation({
-    mutationFn: () => api.createRepo({ name, url }),
+    mutationFn: () =>
+      api.createRepo({
+        name,
+        url,
+        ...(branch.trim() ? { default_branch: branch.trim() } : {}),
+      }),
     onSuccess: () => {
       setName("");
       setUrl("");
+      setBranch("");
       setError(null);
       qc.invalidateQueries({ queryKey: ["repos"] });
     },
@@ -57,7 +64,7 @@ export function RepositoriesPage() {
       </header>
 
       <section className="rounded-lg border border-border bg-card p-4">
-        <form onSubmit={handleCreate} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+        <form onSubmit={handleCreate} className="grid gap-2 md:grid-cols-[1fr_2fr_140px_auto]">
           <Input
             placeholder="Display name (e.g. fastapi)"
             value={name}
@@ -69,6 +76,11 @@ export function RepositoriesPage() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             required
+          />
+          <Input
+            placeholder="branch (main)"
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
           />
           <Button type="submit" loading={createMutation.isPending}>Add repository</Button>
         </form>

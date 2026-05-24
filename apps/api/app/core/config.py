@@ -86,6 +86,27 @@ class Settings(BaseSettings):
     celery_broker_url: str | None = None
     celery_result_backend: str | None = None
 
+    # ---------- GitHub (Phase 6) ----------
+    # Personal Access Token (classic or fine-grained) with repo scope. Server-
+    # side only — never exposed to the frontend. A GitHub App + per-user OAuth
+    # is the multi-tenant upgrade (deferred).
+    github_token: str = ""
+    github_api_base: str = "https://api.github.com"
+
+    # ---------- Sandbox (Phase 5) ----------
+    sandbox_enabled: bool = True
+    sandbox_image: str = "python:3.12-slim"
+    sandbox_timeout_seconds: int = 30
+    sandbox_mem_limit: str = "512m"
+    sandbox_cpus: float = 1.0
+    sandbox_pids_limit: int = 256
+    sandbox_workspace_tmpfs_size: str = "256m"
+    sandbox_max_output_bytes: int = 1_048_576   # 1 MiB cap on streamed output
+    # Docker volume holding cloned repos (compose-prefixed name). Mounted RO.
+    sandbox_workspace_volume: str = "ai-coding-agent_ingest_workspace"
+    # Path the api uses to reach cloned repos (same as ingest workspace).
+    sandbox_workspace_dir: str = "/var/lib/aca/workspace"
+
     # ---------- Rate limits ----------
     rate_limit_anon_per_min: int = 30
     rate_limit_authed_per_min: int = 300

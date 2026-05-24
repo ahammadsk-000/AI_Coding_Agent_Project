@@ -1,0 +1,102 @@
+{{- if .Values.networkPolicy.enabled -}}
+# Default-deny ingress for all chart pods, then allow only what's needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "aca.fullname" . }}-default-deny
+  labels:
+    {{- include "aca.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+---
+# Postgres: only api + worker may connect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "aca.fullname" . }}-postgres
+  labels:
+    {{- include "aca.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "aca.selectorLabels" (dict "ctx" . "component" "postgres") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - port: {{ .Values.postgres.port }}
+---
+# Redis: only api + worker may connect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "aca.fullname" . }}-redis
+  labels:
+    {{- include "aca.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "aca.selectorLabels" (dict "ctx" . "component" "redis") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - port: {{ .Values.redis.port }}
+---
+# Qdrant: only api + worker may connect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "aca.fullname" . }}-qdrant
+  labels:
+    {{- include "aca.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "aca.selectorLabels" (dict "ctx" . "component" "qdrant") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - port: {{ .Values.qdrant.httpPort }}
+        - port: {{ .Values.qdrant.grpcPort }}
+---
+# API + Web: allow ingress from the ingress controller + same namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "aca.fullname" . }}-frontends
+  labels:
+    {{- include "aca.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: ["api", "web"]
+  policyTypes: [Ingress]
+  ingress:
+    - {}   # allow from anywhere (the ingress controller); tighten per-cluster
+{{- end }}
