@@ -1,27 +1,49 @@
 # AI Coding Agent Platform
 
-An open, production-grade, Kubernetes-deployable AI coding platform — think Cursor /
-OpenHands / Continue.dev / Devin, built as an extensible monorepo.
+An open, self-hostable AI coding platform — think Cursor / OpenHands / Continue.dev /
+Devin, built as an extensible monorepo. Bring your own LLM (local **Ollama** or
+**OpenAI**), point it at your repositories, and chat, search, review, and run code
+against them.
 
-> **Status:** Phase 2 of 10 — repository ingestion (clone → tree-sitter parse →
-> AST-aware chunk → embeddings → Qdrant), Celery worker pool, SSE progress.
+> **Status:** Phases 1–9 of 10 complete. Phase 10 (enterprise: multi-tenant orgs,
+> fine-grained RBAC, SSO/SCIM, billing, plugin marketplace) is planned.
 > See [docs/PHASES.md](docs/PHASES.md) for the full roadmap.
 
-## What it does (target state)
+## Features
 
-- 💬 Streaming chat over your codebase with multi-file context
-- 🧠 Repository ingestion, AST parsing (tree-sitter), embeddings → Qdrant
-- 🔎 Hybrid RAG (BM25 + dense) with token-aware context budgeting
-- 🤖 Multi-agent workflows (planner / coder / tester / reviewer) on LangGraph
-- 🖥️ Sandboxed shell execution in disposable Docker containers
-- 🔗 GitHub App: clone, branch, PR generation, AI code review comments
-- 🪪 JWT + RBAC, audit logs, per-IP and per-user rate limits
-- 📊 OpenTelemetry traces, Prometheus metrics, Loki logs, Grafana dashboards
-- ☸️ Helm chart for production; Docker Compose for dev
+| Phase | Capability | Status |
+|------:|------------|:------:|
+| 1 | Monorepo foundations: FastAPI + React, JWT auth + RBAC, rate limits, Docker stack | ✅ |
+| 2 | Repository ingestion: clone → tree-sitter parse → AST-aware chunk → embeddings → Qdrant, Celery workers, live SSE progress | ✅ |
+| 3 | Hybrid search: Qdrant dense + Postgres BM25, Reciprocal Rank Fusion, cross-encoder reranker | ✅ |
+| 4 | Chat / RAG: LLM provider abstraction (Ollama + OpenAI), WebSocket token streaming, conversation history | ✅ |
+| 5 | Sandbox: hardened, disposable Docker containers (network-isolated, non-root, resource-capped) with a command-policy gate | ✅ |
+| 6 | GitHub: PR generation and AI code review via PAT | ✅ |
+| 7 | Memory: project / user memory store | ✅ |
+| 8 | Observability: Prometheus metrics (incl. Celery multiprocess), cost accounting, Grafana dashboards | ✅ |
+| 9 | Deployment: Helm chart with HPA / PDB / NetworkPolicy / Ingress | ✅ |
+| 10 | Enterprise: orgs, fine-grained RBAC, SSO/SCIM, billing, marketplace | ⏳ planned |
 
-## Quick start (dev)
+## Quick start
 
-Prereqs: Docker Desktop (or Docker + Compose v2), GNU Make optional.
+### Windows (one-click)
+
+A launcher is included that starts everything — the local LLM and the full stack:
+
+```bat
+Ai_coding_agent.bat        :: starts Ollama + all containers, opens the app
+Ai_coding_agent_stop.bat   :: stops all containers + Ollama (frees CPU/RAM)
+```
+
+The launcher creates `.env` from `.env.example` on first run, starts the
+[Ollama](https://ollama.com) server on the host, brings up the Docker stack, waits
+for health, and opens the browser. Stop everything with the stop script when you're
+done so nothing runs in the background.
+
+### Any platform (Docker Compose)
+
+Prereqs: Docker Desktop (or Docker + Compose v2). For local LLM chat, install and run
+[Ollama](https://ollama.com) and pull a model (e.g. `ollama pull llama3.2`).
 
 ```bash
 cp .env.example .env
@@ -34,32 +56,48 @@ Then open:
 - Health   → http://localhost:8000/health
 - Metrics  → http://localhost:8000/metrics
 - Qdrant   → http://localhost:6333/dashboard
-- Flower (Celery) → http://localhost:5555
+- Flower (Celery)  → http://localhost:5555
+- Prometheus       → http://localhost:9090
+- Grafana          → http://localhost:3001 (dashboard: *AI Coding Agent – Overview*)
 
 Default seeded admin (created on first boot if `SEED_ADMIN=true`):
 - email: `admin@local.test`
 - password: `changeme123!`
 
-Change the password immediately via `PATCH /api/v1/users/me` or by registering a new
-admin and disabling the seed.
+Change the password immediately and disable the seed before exposing this anywhere.
+
+## LLM providers
+
+Chat and AI review need a model. Configure in `.env`:
+
+- **Ollama (default, local)** — `LLM_PROVIDER=ollama`, `OLLAMA_DEFAULT_MODEL=llama3.2:latest`.
+  The Ollama server runs on the host; containers reach it via
+  `host.docker.internal:11434`. If chat fails with `ConnectError: All connection
+  attempts failed`, the Ollama server isn't running — start it (`ollama serve`) or use
+  the Windows launcher, which starts it for you.
+- **OpenAI** — `LLM_PROVIDER=openai` and set `OPENAI_API_KEY`.
+
+GitHub PR generation / review needs a `GITHUB_TOKEN` (PAT) in `.env`. The token is
+server-side only and never sent to the frontend.
 
 ## Repository layout
 
 ```
 apps/
-  api/        FastAPI backend (Python 3.12)
+  api/        FastAPI backend (Python 3.12, async SQLAlchemy, Alembic, Celery)
   web/        React + Vite + TypeScript frontend
-  worker/     Celery workers (Phase 2+)
-  sandbox/    Sandbox runner image (Phase 5)
-packages/     Shared libraries (Phase 7+)
 infra/
   docker/     Init scripts, base images
   nginx/      Reverse proxy
-  k8s/        Raw K8s manifests (Phase 9)
+  prometheus/ Prometheus scrape config
+  grafana/    Grafana provisioning (datasources + dashboards)
   helm/       Helm chart (Phase 9)
-docs/         Architecture, ADRs, runbooks
+docs/         ARCHITECTURE.md, PHASES.md, SECURITY.md, ADRs
 scripts/      Dev/CI helpers
 ```
+
+The Celery worker and sandbox run from the API image — there are no separate
+`apps/worker` or `apps/sandbox` directories.
 
 ## Development
 
@@ -73,7 +111,11 @@ make api-upgrade            # alembic upgrade head
 make web-dev    # run vite dev server outside docker
 ```
 
-Without Make, the equivalent commands are listed in [Makefile](./Makefile).
+Without Make, the equivalent commands are in the [Makefile](./Makefile).
+
+> Tip: after adding new frontend imports, Vite's dep cache can go stale. If a new page
+> 404s or a module isn't found, clear it: remove `apps/web/node_modules/.vite` and
+> `docker compose restart web`.
 
 ## Testing
 
@@ -83,9 +125,15 @@ Without Make, the equivalent commands are listed in [Makefile](./Makefile).
 
 ## Deploying
 
-Phase 1 ships Docker Compose for local + a single-node staging. Helm chart lands in
-Phase 9.
+Docker Compose for local / single-node. For Kubernetes, use the Helm chart in
+[infra/helm/aca](infra/helm/aca) (HPA, PDB, NetworkPolicy, Ingress; see its README).
+
+## Security
+
+See [docs/SECURITY.md](docs/SECURITY.md). Never commit `.env` — it is gitignored.
+Secrets (`JWT_SECRET`, `GITHUB_TOKEN`, `OPENAI_API_KEY`) belong only in `.env` or your
+deployment secret store.
 
 ## License
 
-MIT (placeholder — pick your final license before publishing).
+MIT (placeholder — choose your final license before publishing).
