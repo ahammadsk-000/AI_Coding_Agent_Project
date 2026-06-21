@@ -11,6 +11,7 @@ import { MemoryPage } from "@/routes/memory";
 import { SandboxPage } from "@/routes/sandbox";
 import { GitHubPage } from "@/routes/github";
 import { SettingsPage } from "@/routes/settings";
+import { SANDBOX_ENABLED } from "@/lib/features";
 import { RequireAuth } from "@/components/layout/require-auth";
 import { AppShell } from "@/components/layout/shell";
 
@@ -34,7 +35,9 @@ export default function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:id" element={<ChatPage />} />
         <Route path="/memory" element={<MemoryPage />} />
-        <Route path="/sandbox" element={<SandboxPage />} />
+        {SANDBOX_ENABLED ? (
+          <Route path="/sandbox" element={<SandboxPage />} />
+        ) : null}
         <Route path="/github" element={<GitHubPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
