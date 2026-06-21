@@ -6,10 +6,10 @@ they import `settings` from here. This keeps the env contract auditable.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, PostgresDsn, RedisDsn, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_workers: int = 1
     api_reload: bool = False
-    api_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    # NoDecode: don't let pydantic-settings JSON-parse the env value; the
+    # validator below accepts a plain comma-separated string (so
+    # API_CORS_ORIGINS=https://app.vercel.app just works, no JSON brackets).
+    api_cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
 
     # ---------- Security ----------
     jwt_secret: str = Field(min_length=16)
@@ -86,7 +91,7 @@ class Settings(BaseSettings):
     ingest_chunk_target_tokens: int = 400
     ingest_chunk_overlap_tokens: int = 64
     ingest_embed_batch_size: int = 32
-    ingest_allowed_langs: list[str] = Field(
+    ingest_allowed_langs: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
             "python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"
         ]
