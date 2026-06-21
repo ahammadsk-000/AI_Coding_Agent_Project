@@ -36,6 +36,10 @@ class UserRepository:
 
     async def update(self, user: User) -> User:
         await self.session.flush()
+        # Reload roles + server-side onupdate columns (updated_at) within the
+        # async context, so a later sync model_validate() never triggers a lazy
+        # load (which raises MissingGreenlet on the async engine).
+        await self.session.refresh(user, attribute_names=["roles", "updated_at"])
         return user
 
 
