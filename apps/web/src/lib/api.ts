@@ -333,6 +333,9 @@ export const api = {
 
   me: () => apiRequest<User>("/api/v1/users/me"),
 
+  updateProfile: (data: { full_name?: string; password?: string }) =>
+    apiRequest<User>("/api/v1/users/me", { method: "PATCH", body: data }),
+
   ready: () =>
     apiRequest<{ status: string; checks: Record<string, string> }>("/api/v1/ready", {
       auth: false,

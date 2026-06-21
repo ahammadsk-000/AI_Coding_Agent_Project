@@ -8,6 +8,7 @@ import {
   Brain,
   Terminal,
   Github,
+  Settings,
   Sparkles,
 } from "lucide-react";
 
@@ -46,6 +47,7 @@ export function AppShell() {
           <NavItem to="/memory" icon={<Brain className="h-4 w-4" />} label="Memory" />
           <NavItem to="/sandbox" icon={<Terminal className="h-4 w-4" />} label="Sandbox" />
           <NavItem to="/github" icon={<Github className="h-4 w-4" />} label="GitHub" />
+          <NavItem to="/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />
         </nav>
         <div className="p-3 border-t border-border space-y-2">
           <div className="text-xs text-muted-foreground truncate">
