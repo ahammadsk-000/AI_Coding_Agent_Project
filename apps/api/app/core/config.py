@@ -68,8 +68,18 @@ class Settings(BaseSettings):
     # ---------- Embeddings ----------
     embedding_provider: Literal["local", "openai"] = "local"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
+    # Separate credentials for the embedding API so chat and embeddings can use
+    # different providers (e.g. chat=Groq, embeddings=OpenAI — Groq has no
+    # embeddings endpoint). Fall back to the openai_* settings when unset.
+    embedding_api_key: str | None = None
+    embedding_base_url: str | None = None
 
     # ---------- Ingestion (Phase 2) ----------
+    # When true, run ingestion in a one-shot subprocess inside the API instead
+    # of dispatching to a Celery worker. Lets the free-tier deploy run without a
+    # separate always-on worker. The subprocess gets its own async engine + event
+    # loop, so it never disturbs the API's connection pool.
+    ingest_inline: bool = False
     ingest_workspace_dir: str = "/var/lib/aca/workspace"
     ingest_max_file_bytes: int = 1_048_576           # 1 MiB
     ingest_max_repo_bytes: int = 536_870_912         # 512 MiB

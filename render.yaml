@@ -1,0 +1,90 @@
+# Render Blueprint — backend API for the AI Coding Agent (free tier).
+#
+# The React frontend is deployed separately on Vercel (see apps/web/vercel.json).
+# You bring your own managed services (all have free tiers) and wire them in via
+# the env vars below:
+#
+#   Postgres   → Neon          → DATABASE_URL
+#   Redis      → Upstash       → REDIS_URL          (rate limiting + ingest pub/sub)
+#   Vectors    → Qdrant Cloud  → QDRANT_URL / QDRANT_API_KEY
+#   Chat LLM   → Groq          → OPENAI_* (Groq's OpenAI-compatible endpoint)
+#   Embeddings → OpenAI        → EMBEDDING_* (Groq has no embeddings endpoint)
+#
+# What's disabled on this tier (see docs/DEPLOY.md):
+#   - The Phase-5 sandbox — it needs a host Docker socket managed PaaS can't give.
+#   - The Celery worker — ingestion runs inline in a subprocess instead.
+#   - Local embeddings + cross-encoder reranker — they need torch (too big for 512 MB).
+# Everything else (auth, ingestion, hybrid search, chat/RAG, memory, GitHub) works.
+
+services:
+  - type: web
+    name: ai-coding-agent-api
+    runtime: python
+    plan: free
+    rootDir: apps/api
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements-deploy.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: APP_ENV
+        value: production
+      - key: LOG_FORMAT
+        value: json
+
+      # ---- run without a Celery worker; disable the Docker sandbox ----
+      - key: INGEST_INLINE
+        value: "true"
+      - key: SANDBOX_ENABLED
+        value: "false"
+      - key: INGEST_WORKSPACE_DIR
+        value: /tmp/aca-workspace
+
+      # ---- auth ----
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: SEED_ADMIN
+        value: "true"   # creates admin@local.test / changeme123! — change it after first login
+
+      # ---- chat LLM: Groq (OpenAI-compatible API) ----
+      - key: LLM_PROVIDER
+        value: openai
+      - key: OPENAI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: OPENAI_DEFAULT_MODEL
+        value: llama-3.3-70b-versatile
+      - key: OPENAI_API_KEY            # ← paste your Groq API key (console.groq.com)
+        sync: false
+
+      # ---- embeddings: OpenAI (real semantic search) ----
+      - key: EMBEDDING_PROVIDER
+        value: openai
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: EMBEDDING_BASE_URL
+        value: https://api.openai.com/v1
+      - key: EMBEDDING_API_KEY         # ← paste your OpenAI API key (platform.openai.com)
+        sync: false
+
+      # ---- data stores (paste connection strings in the dashboard) ----
+      - key: DATABASE_URL              # Neon: postgresql+asyncpg://USER:PASS@HOST/DB?sslmode=require
+        sync: false
+      - key: REDIS_URL                 # Upstash: rediss://default:PASS@HOST:6379
+        sync: false
+      - key: QDRANT_URL                # Qdrant Cloud: https://xxxx.cloud.qdrant.io:6333
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+
+      # ---- CORS: your exact Vercel URL ----
+      - key: API_CORS_ORIGINS          # e.g. https://your-app.vercel.app
+        sync: false
+
+      # ---- optional: GitHub PAT for Phase-6 PR create/review ----
+      - key: GITHUB_TOKEN
+        sync: false

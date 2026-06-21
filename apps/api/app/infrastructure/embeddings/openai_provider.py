@@ -28,15 +28,21 @@ class OpenAIEmbeddingProvider:
     _lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(self) -> None:
-        if not settings.openai_api_key:
+        # Prefer embedding-specific credentials so chat (e.g. Groq) and
+        # embeddings (e.g. OpenAI) can use different providers; fall back to the
+        # shared openai_* settings.
+        api_key = settings.embedding_api_key or settings.openai_api_key
+        base_url = settings.embedding_base_url or settings.openai_base_url
+        if not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY is required when EMBEDDING_PROVIDER=openai"
+                "EMBEDDING_API_KEY (or OPENAI_API_KEY) is required when "
+                "EMBEDDING_PROVIDER=openai"
             )
         self._model_name = settings.embedding_model
         self._dimension = _MODEL_DIMS.get(self._model_name, 1536)
         self._client = httpx.Client(
-            base_url=settings.openai_base_url,
-            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            base_url=base_url,
+            headers={"Authorization": f"Bearer {api_key}"},
             timeout=60.0,
         )
 

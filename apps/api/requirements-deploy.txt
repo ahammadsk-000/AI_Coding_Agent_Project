@@ -1,0 +1,62 @@
+# Slim runtime dependencies for the free-tier deploy (Render, 512 MB).
+#
+# This is the pinned subset of pyproject.toml's [project.dependencies] that the
+# managed deployment actually needs. It deliberately EXCLUDES the heavy /
+# host-only packages so the app fits a 512 MB free dyno:
+#
+#   - sentence-transformers  → pulls torch (~2 GB); we use OpenAI embeddings
+#                              (EMBEDDING_PROVIDER=openai) instead. The optional
+#                              cross-encoder reranker is skipped gracefully.
+#   - docker                 → the sandbox needs a host Docker socket that
+#                              managed PaaS does not provide (SANDBOX_ENABLED=false).
+#   - flower                 → Celery monitoring UI; no worker runs here
+#                              (ingestion runs inline — INGEST_INLINE=true).
+#
+# Keep these pins in sync with pyproject.toml.
+
+# web
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.17
+
+# data
+SQLAlchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+# cache / broker / pub-sub
+redis==5.2.0
+
+# auth / crypto
+PyJWT[crypto]==2.10.1
+passlib[argon2]==1.7.4
+argon2-cffi==23.1.0
+
+# validation / config
+pydantic==2.9.2
+pydantic-settings==2.6.1
+email-validator==2.2.0
+
+# http
+httpx==0.27.2
+
+# logging / observability
+structlog==24.4.0
+orjson==3.10.11
+prometheus-client==0.21.0
+
+# vector store
+qdrant-client==1.12.1
+
+# ingestion / parsing (run inline in a subprocess)
+celery[redis]==5.4.0
+GitPython==3.1.43
+tree-sitter==0.23.1
+tree-sitter-languages==1.10.2
+tiktoken==0.8.0
+sse-starlette==2.1.3
+
+# LLM clients + websocket support
+openai==1.54.4
+websockets==13.1

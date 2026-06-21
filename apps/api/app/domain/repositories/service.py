@@ -15,6 +15,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.domain.repositories.models import (
     CodeChunk,
@@ -76,6 +77,21 @@ class RepositoryService:
         await self.repos.set_status(repo, RepositoryStatus.ingesting)
         # Commit early so the worker can see the row, then dispatch outside the txn.
         await self.session.commit()
+
+        if settings.ingest_inline:
+            # Free-tier / no-worker mode: run ingestion in a one-shot subprocess.
+            # A separate process gives the ingest its own async engine + event
+            # loop (exactly like a Celery worker would), so it never reuses the
+            # API's connection pool across loops. Fire-and-forget; progress is
+            # streamed over Redis pub/sub identically to the Celery path.
+            import subprocess
+            import sys
+
+            subprocess.Popen(  # noqa: S603
+                [sys.executable, "-m", "app.ingest_cli", str(repo.id), str(job.id)],
+            )
+            await self.session.refresh(job)
+            return job
 
         # Late import: only the API path needs Celery; worker imports its own.
         from app.tasks.ingest import ingest_repository
