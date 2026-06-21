@@ -62,3 +62,7 @@ test-results/
 
 # ---- Local Alembic backup ----
 apps/api/alembic/versions/*.py.bak
+
+# ---- Dev artifacts / conversation dumps (may contain notes or partial secrets) ----
+AI_Coding_Agent_Compact.txt
+*_Compact.txt
