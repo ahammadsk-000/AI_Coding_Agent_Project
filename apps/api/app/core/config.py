@@ -41,6 +41,11 @@ class Settings(BaseSettings):
         default="http://localhost:3000",
         validation_alias="API_CORS_ORIGINS",
     )
+    # Optional regex matching a whole family of origins — useful for Vercel,
+    # whose preview deployments get a fresh hashed URL each push. Example:
+    #   API_CORS_ORIGIN_REGEX=https://ai-coding-agent-project.*\.vercel\.app
+    # Applied in addition to api_cors_origins.
+    api_cors_origin_regex: str | None = None
 
     # ---------- Security ----------
     jwt_secret: str = Field(min_length=16)
