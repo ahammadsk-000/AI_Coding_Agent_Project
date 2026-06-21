@@ -496,7 +496,7 @@ function MessageBody({ content }: { content: string }) {
     > = [];
     let lastIndex = 0;
     for (const match of content.matchAll(CODE_FENCE_RE)) {
-      const [full, lang, code] = match;
+      const [full = "", lang = "", code = ""] = match;
       const start = match.index ?? 0;
       if (start > lastIndex) {
         result.push({ kind: "text", text: content.slice(lastIndex, start) });
@@ -510,8 +510,9 @@ function MessageBody({ content }: { content: string }) {
     return result;
   }, [content]);
 
-  if (parts.length === 1 && parts[0].kind === "text") {
-    return <>{parts[0].text}</>;
+  const only = parts[0];
+  if (parts.length === 1 && only && only.kind === "text") {
+    return <>{only.text}</>;
   }
   return (
     <div className="space-y-2">
