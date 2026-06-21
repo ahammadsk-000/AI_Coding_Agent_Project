@@ -16,6 +16,15 @@ from __future__ import annotations
 import asyncio
 import sys
 
+# Register every ORM model so SQLAlchemy's Base.metadata can resolve foreign
+# keys (e.g. repositories.owner_id -> users.id) during flush. The API process
+# gets these transitively via the router; this standalone subprocess does not,
+# so import them explicitly — mirrors app.tasks.celery_app for the worker.
+from app.domain.chat import models as _chat_models  # noqa: F401
+from app.domain.memory import models as _memory_models  # noqa: F401
+from app.domain.repositories import models as _repo_models  # noqa: F401
+from app.domain.users import models as _user_models  # noqa: F401
+
 
 def main() -> int:
     if len(sys.argv) != 3:
