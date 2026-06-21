@@ -366,6 +366,8 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
             repo_db = await repos.get(repo_uuid)
             job_db = await jobs.get(job_uuid)
             if repo_db is not None:
+                # Surface the failure reason on the repo (shown in the UI).
+                repo_db.stats = {"last_error": str(e)[:500]}
                 await repos.set_status(repo_db, RepositoryStatus.failed)
             if job_db is not None:
                 await jobs.mark_failed(job_db, error=str(e))

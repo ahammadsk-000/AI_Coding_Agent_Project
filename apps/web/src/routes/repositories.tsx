@@ -119,6 +119,9 @@ function RepoCard({
   onDelete: () => void;
   ingesting: boolean;
 }) {
+  const stats = repo.stats;
+  const lastError =
+    stats && typeof stats.last_error === "string" ? stats.last_error : null;
   return (
     <div className="rounded-lg border border-border bg-card p-4 flex items-start justify-between gap-4">
       <div className="min-w-0 space-y-1">
@@ -130,10 +133,12 @@ function RepoCard({
           <StatusPill status={repo.status} />
         </div>
         <div className="text-xs text-muted-foreground truncate">{repo.url}</div>
-        {repo.stats ? (
+        {lastError ? (
+          <div className="text-xs text-destructive break-words">error: {lastError}</div>
+        ) : stats ? (
           <div className="text-xs text-muted-foreground">
-            files: {(repo.stats as Record<string, number>).files_indexed ?? "?"} · chunks:{" "}
-            {(repo.stats as Record<string, number>).chunks_indexed ?? "?"}
+            files: {String(stats.files_indexed ?? "?")} · chunks:{" "}
+            {String(stats.chunks_indexed ?? "?")}
           </div>
         ) : null}
       </div>
