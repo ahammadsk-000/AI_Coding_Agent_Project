@@ -102,6 +102,12 @@ The deployment configs are already in the repo:
 
    Used for rate limiting and ingest progress pub/sub.
 
+   > ⚠️ **Paste the URL only — not the `redis-cli` command.** Upstash's Connect
+   > tab shows `redis-cli --tls -u rediss://default:PASS@host:6379`. Copy just the
+   > part after `-u ` (the `rediss://…` URL), and make sure the password is
+   > revealed, not `********`. Pasting the whole `redis-cli …` line fails with
+   > `redis_url: Input should be a valid URL`.
+
 > Upstash free tier caps daily commands. Fine for a demo; if you hit limits,
 > raise the rate-limit env vars or upgrade.
 
