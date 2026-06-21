@@ -58,20 +58,20 @@ def _events_channel(job_id: str) -> str:
 
 
 async def _publish(job_id: str, event: dict[str, Any]) -> None:
-    redis = get_redis()
-    await redis.publish(_events_channel(job_id), json.dumps(event, default=str))
+    """Publish a progress event over Redis pub/sub.
 
-
-def _publish_sync(job_id: str, event: dict[str, Any]) -> None:
-    """Best-effort fire-and-forget publish from a sync context."""
+    Best-effort: progress streaming must never crash ingestion. Uses the async
+    Redis client (the same one rate limiting uses) — the ingest core always runs
+    inside an event loop, so awaiting here is correct in both the Celery worker
+    and the inline-subprocess paths.
+    """
     try:
-        asyncio.run(_publish(job_id, event))
-    except RuntimeError:
-        # already inside a loop (shouldn't happen in worker); fall back to sync redis
-        import redis as redis_sync
-
-        client = redis_sync.from_url(settings.effective_broker, decode_responses=True)
-        client.publish(_events_channel(job_id), json.dumps(event, default=str))
+        redis = get_redis()
+        await redis.publish(_events_channel(job_id), json.dumps(event, default=str))
+    except Exception:
+        # A pub/sub hiccup (e.g. a managed Redis dropping the connection) must not
+        # fail the job; the frontend also polls job status as a fallback.
+        pass
 
 
 # ---------- per-file processing ----------
@@ -235,7 +235,7 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
         await jobs.mark_running(job)
         await session.commit()
 
-    _publish_sync(job_id, {"type": "status", "status": "running"})
+    await _publish(job_id, {"type": "status", "status": "running"})
 
     embedder = get_embedding_provider()
     qdrant = QdrantService.get()
@@ -245,7 +245,7 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
     dest = workdir_for(workspace, repository_id)
     try:
         # ---- clone ----
-        _publish_sync(job_id, {"type": "log", "message": "cloning repository"})
+        await _publish(job_id, {"type": "log", "message": "cloning repository"})
         clone = shallow_clone(
             url=repo.url,
             branch=repo.default_branch,
@@ -263,7 +263,7 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
                 results.append(res)
 
             if files_seen % 50 == 0:
-                _publish_sync(job_id, {
+                await _publish(job_id, {
                     "type": "progress",
                     "files_seen": files_seen,
                     "files_indexed": len(results),
@@ -316,7 +316,7 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
                     qdrant.upsert_chunks(collection=coll_name, points=points_batch)
                     points_batch = []
                 stats["chunks_indexed"] += len(vecs)
-                _publish_sync(job_id, {
+                await _publish(job_id, {
                     "type": "progress",
                     "files_seen": stats["files_seen"],
                     "files_indexed": stats["files_indexed"],
@@ -355,7 +355,7 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
         M.ingest_files_indexed_total.inc(stats["files_indexed"])
         M.ingest_chunks_indexed_total.inc(stats["chunks_indexed"])
 
-        _publish_sync(job_id, {"type": "done", "status": "succeeded", **stats})
+        await _publish(job_id, {"type": "done", "status": "succeeded", **stats})
         return {"ok": True, **stats}
 
     except Exception as e:
@@ -372,5 +372,5 @@ async def _ingest_repository_async(repository_id: str, job_id: str) -> dict[str,
             await session.commit()
         from app.core import metrics as M
         M.ingest_jobs_total.labels("failed").inc()
-        _publish_sync(job_id, {"type": "error", "status": "failed", "message": str(e)})
+        await _publish(job_id, {"type": "error", "status": "failed", "message": str(e)})
         return {"ok": False, "error": str(e)}
