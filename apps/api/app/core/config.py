@@ -6,10 +6,10 @@ they import `settings` from here. This keeps the env contract auditable.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic import Field, PostgresDsn, RedisDsn
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -33,11 +33,13 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_workers: int = 1
     api_reload: bool = False
-    # NoDecode: don't let pydantic-settings JSON-parse the env value; the
-    # validator below accepts a plain comma-separated string (so
-    # API_CORS_ORIGINS=https://app.vercel.app just works, no JSON brackets).
-    api_cors_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:3000"]
+    # Stored as a raw string from env (API_CORS_ORIGINS), exposed as a list via
+    # the api_cors_origins property below. Kept a str so pydantic-settings never
+    # tries to JSON-decode it — a plain comma-separated value would otherwise be
+    # rejected (e.g. API_CORS_ORIGINS=https://app.vercel.app).
+    cors_origins_raw: str = Field(
+        default="http://localhost:3000",
+        validation_alias="API_CORS_ORIGINS",
     )
 
     # ---------- Security ----------
@@ -91,10 +93,11 @@ class Settings(BaseSettings):
     ingest_chunk_target_tokens: int = 400
     ingest_chunk_overlap_tokens: int = 64
     ingest_embed_batch_size: int = 32
-    ingest_allowed_langs: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: [
-            "python", "typescript", "javascript", "go", "rust", "java", "cpp", "c"
-        ]
+    # Raw string from env (INGEST_ALLOWED_LANGS), exposed as a list via the
+    # ingest_allowed_langs property below (kept a str to avoid JSON decoding).
+    ingest_allowed_langs_raw: str = Field(
+        default="python,typescript,javascript,go,rust,java,cpp,c",
+        validation_alias="INGEST_ALLOWED_LANGS",
     )
 
     # ---------- Celery (Phase 2) ----------
@@ -132,19 +135,15 @@ class Settings(BaseSettings):
     otel_service_name: str = "ai-coding-agent-api"
     prometheus_enabled: bool = True
 
-    @field_validator("api_cors_origins", mode="before")
-    @classmethod
-    def split_csv(cls, v: object) -> object:
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    @property
+    def api_cors_origins(self) -> list[str]:
+        """Allowed CORS origins, parsed from the comma-separated env string."""
+        return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
-    @field_validator("ingest_allowed_langs", mode="before")
-    @classmethod
-    def _split_langs(cls, v: object) -> object:
-        if isinstance(v, str):
-            return [s.strip().lower() for s in v.split(",") if s.strip()]
-        return v
+    @property
+    def ingest_allowed_langs(self) -> list[str]:
+        """Languages to ingest, parsed from the comma-separated env string."""
+        return [s.strip().lower() for s in self.ingest_allowed_langs_raw.split(",") if s.strip()]
 
     @property
     def effective_broker(self) -> str:
