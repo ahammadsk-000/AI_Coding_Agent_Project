@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { initials } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
 const QUICK_ACTIONS: {
@@ -44,7 +45,7 @@ export function DashboardPage() {
   });
 
   const displayName = user?.full_name?.trim() || user?.email || "there";
-  const initials = initialsOf(user?.full_name || user?.email || "?");
+  const userInitials = initials(user?.full_name || user?.email || "?");
   const greeting = greetingForNow();
   const role = user?.roles.map((r) => r.name).join(", ") || "member";
 
@@ -94,7 +95,7 @@ export function DashboardPage() {
         <Card title="Your account">
           <div className="flex items-center gap-3">
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 text-sm font-semibold text-white">
-              {initials}
+              {userInitials}
             </div>
             <div className="min-w-0">
               <div className="truncate font-medium">{user?.full_name || user?.email}</div>
@@ -154,16 +155,6 @@ function greetingForNow(): string {
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
-}
-
-function initialsOf(raw: string): string {
-  const parts = raw.trim().split(/[\s@._-]+/).filter(Boolean);
-  const a = parts[0] ?? "";
-  const b = parts.length > 1 ? parts[1] ?? "" : "";
-  const initials = (a.charAt(0) + b.charAt(0)).toUpperCase();
-  if (initials.length >= 2) return initials;
-  if (a.length >= 2) return a.slice(0, 2).toUpperCase();
-  return (a.charAt(0) || "?").toUpperCase();
 }
 
 function Card({
