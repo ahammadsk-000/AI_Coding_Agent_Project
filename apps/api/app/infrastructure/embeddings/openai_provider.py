@@ -6,6 +6,7 @@ text-embeddings-inference, etc.) by switching `OPENAI_BASE_URL`.
 from __future__ import annotations
 
 import threading
+import time
 from typing import ClassVar
 
 import httpx
@@ -74,15 +75,42 @@ class OpenAIEmbeddingProvider:
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        # OpenAI supports batching natively; cap at 1k per request.
         out: list[list[float]] = []
         for i in range(0, len(texts), 256):
-            batch = texts[i : i + 256]
+            out.extend(self._embed_batch(texts[i : i + 256]))
+        return out
+
+    def _embed_batch(self, batch: list[str]) -> list[list[float]]:
+        """Embed one batch, retrying with backoff on rate limits (429) / 5xx.
+
+        Free embedding tiers (e.g. Jina) impose per-minute limits; backing off
+        and retrying lets a large ingest ride through them instead of failing.
+        """
+        delay = 2.0
+        last: httpx.Response | None = None
+        for attempt in range(6):
             resp = self._client.post(
                 "/embeddings",
                 json={"model": self._model_name, "input": batch},
             )
+            last = resp
+            if resp.status_code == 429 or resp.status_code >= 500:
+                retry_after = resp.headers.get("retry-after")
+                try:
+                    wait = float(retry_after) if retry_after else delay
+                except ValueError:
+                    wait = delay
+                wait = min(wait, 30.0)
+                log.warning(
+                    "embed_rate_limited", status=resp.status_code,
+                    attempt=attempt + 1, wait_s=wait,
+                )
+                time.sleep(wait)
+                delay = min(delay * 2, 30.0)
+                continue
             resp.raise_for_status()
-            data = resp.json()["data"]
-            out.extend(item["embedding"] for item in data)
-        return out
+            return [item["embedding"] for item in resp.json()["data"]]
+        # Retries exhausted — surface the last error.
+        if last is not None:
+            last.raise_for_status()
+        return []
