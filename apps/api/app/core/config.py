@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     # embeddings endpoint). Fall back to the openai_* settings when unset.
     embedding_api_key: str | None = None
     embedding_base_url: str | None = None
+    # Explicit embedding vector size. Only needed when the model isn't in the
+    # provider's known-dimensions map (e.g. a non-OpenAI provider like Jina).
+    embedding_dim: int | None = None
 
     # ---------- Ingestion (Phase 2) ----------
     # When true, run ingestion in a one-shot subprocess inside the API instead

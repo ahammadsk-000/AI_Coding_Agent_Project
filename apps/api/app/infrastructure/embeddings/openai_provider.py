@@ -15,11 +15,19 @@ from app.core.logging import get_logger
 
 log = get_logger("embeddings.openai")
 
-# Common defaults; can be overridden by model-specific dim probes if needed.
+# Known embedding dimensions across OpenAI-compatible providers. Anything not
+# listed here can be set explicitly via EMBEDDING_DIM.
 _MODEL_DIMS = {
+    # OpenAI
     "text-embedding-3-small": 1536,
     "text-embedding-3-large": 3072,
     "text-embedding-ada-002": 1536,
+    # Jina (free tier, OpenAI-compatible, no credit card)
+    "jina-embeddings-v2-small-en": 512,
+    "jina-embeddings-v2-base-en": 768,
+    "jina-embeddings-v3": 1024,
+    # Google Gemini (OpenAI-compatible endpoint)
+    "text-embedding-004": 768,
 }
 
 
@@ -39,7 +47,7 @@ class OpenAIEmbeddingProvider:
                 "EMBEDDING_PROVIDER=openai"
             )
         self._model_name = settings.embedding_model
-        self._dimension = _MODEL_DIMS.get(self._model_name, 1536)
+        self._dimension = settings.embedding_dim or _MODEL_DIMS.get(self._model_name, 1536)
         self._client = httpx.Client(
             base_url=base_url,
             headers={"Authorization": f"Bearer {api_key}"},
