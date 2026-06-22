@@ -16,6 +16,13 @@ export function Mermaid({ code }: { code: string }) {
       try {
         const mermaid = (await import("mermaid")).default;
         mermaid.initialize({ startOnLoad: false, theme: "dark", securityLevel: "loose" });
+        // Validate first (suppressErrors avoids Mermaid injecting a stray error
+        // graphic into the DOM); fall back to raw text if invalid.
+        const valid = await mermaid.parse(code, { suppressErrors: true });
+        if (!valid) {
+          if (!cancelled) setError(true);
+          return;
+        }
         const id = "m" + Math.random().toString(36).slice(2);
         const { svg } = await mermaid.render(id, code);
         if (!cancelled && ref.current) ref.current.innerHTML = svg;

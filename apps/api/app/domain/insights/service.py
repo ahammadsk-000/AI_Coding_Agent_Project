@@ -10,15 +10,17 @@ from collections import defaultdict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.repositories.models import CodeSymbol, Repository, RepositoryFile
+from app.domain.repositories.models import Repository, RepositoryFile
 from app.infrastructure.llm import ChatMessage, get_llm_provider
 
 _DIAGRAM_SYS = (
     "You are an architecture analyst. From a repository's file inventory, produce "
-    "a Mermaid `flowchart TD` diagram of its high-level architecture — the main "
-    "modules/packages/layers and how they relate. Output ONLY a fenced ```mermaid "
-    "code block, nothing else. Keep it to ~8-15 nodes, use short labels, and emit "
-    "valid Mermaid syntax."
+    "a Mermaid `flowchart TD` diagram of its high-level architecture (main "
+    "modules/packages/layers and how they relate). STRICT Mermaid syntax: node ids "
+    "are simple identifiers; labels go in square brackets like A[\"Label\"]; edges "
+    "are `A --> B`, or with a label `A -->|uses| B` (exactly one pipe before AND "
+    "after the label, with NO extra `>` after the closing pipe). Output ONLY a "
+    "fenced ```mermaid code block — ~8-15 nodes, valid syntax, nothing else."
 )
 
 _DOCS_SYS = (
@@ -61,7 +63,7 @@ class InsightsService:
             temperature=0.2,
             max_tokens=700,
         )
-        return _extract_mermaid(resp.content)
+        return _repair_mermaid(_extract_mermaid(resp.content))
 
     async def docs(self, repo: Repository) -> str:
         inv = await self._inventory(repo.id)
@@ -79,14 +81,18 @@ class InsightsService:
         return resp.content.strip()
 
     async def codemap(self, repo: Repository) -> str:
-        """Data-driven Mermaid graph: repo → top files → their top symbols."""
+        """Data-driven Mermaid graph: repo → top-level directories → files.
+
+        Built from the file inventory (always present), so it works even when
+        tree-sitter symbol extraction produced nothing for a repo.
+        """
         stmt = (
-            select(CodeSymbol.name, CodeSymbol.kind, RepositoryFile.path)
-            .join(RepositoryFile, RepositoryFile.id == CodeSymbol.file_id)
+            select(RepositoryFile.path)
             .where(RepositoryFile.repository_id == repo.id)
+            .order_by(RepositoryFile.path)
         )
-        rows = (await self.session.execute(stmt)).all()
-        return _build_codemap(rows, repo.name)
+        paths = [row[0] for row in (await self.session.execute(stmt)).all()]
+        return _build_codemap(paths, repo.name)
 
 
 def _extract_mermaid(text: str) -> str:
@@ -99,19 +105,29 @@ def _san(s: object) -> str:
     return re.sub(r'["\[\]{}|<>`()]', " ", str(s)).strip()[:60] or "?"
 
 
-def _build_codemap(rows, repo_name: str) -> str:
-    by_file: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for name, kind, path in rows:
-        by_file[path].append((name, kind))
-    files = sorted(by_file.items(), key=lambda kv: -len(kv[1]))[:15]
+def _build_codemap(paths: list[str], repo_name: str) -> str:
+    by_dir: dict[str, list[str]] = defaultdict(list)
+    for p in paths:
+        parts = p.split("/")
+        top = parts[0] if len(parts) > 1 else "(root)"
+        by_dir[top].append(p)
 
     lines = ["flowchart LR", f'  root["{_san(repo_name)}"]']
-    if not files:
-        lines.append('  root --> empty["no symbols extracted yet"]')
+    if not paths:
+        lines.append('  root --> empty["no files indexed yet"]')
         return "\n".join(lines)
-    for fi, (path, syms) in enumerate(files):
-        fid = f"f{fi}"
-        lines.append(f'  root --> {fid}["{_san(path)}"]')
-        for si, (sname, _kind) in enumerate(syms[:4]):
-            lines.append(f'  {fid} --> {fid}s{si}["{_san(sname)}"]')
+    dirs = sorted(by_dir.items(), key=lambda kv: -len(kv[1]))[:12]
+    for di, (d, files) in enumerate(dirs):
+        did = f"d{di}"
+        lines.append(f'  root --> {did}["{_san(d)} ({len(files)})"]')
+        for fi, fpath in enumerate(sorted(files)[:8]):
+            fname = fpath.split("/")[-1]
+            lines.append(f'  {did} --> {did}f{fi}["{_san(fname)}"]')
+        if len(files) > 8:
+            lines.append(f'  {did} --> {did}more["+{len(files) - 8} more"]')
     return "\n".join(lines)
+
+
+def _repair_mermaid(code: str) -> str:
+    """Fix the most common LLM Mermaid mistake: `-->|label|>` → `-->|label|`."""
+    return code.replace("|>", "|")
