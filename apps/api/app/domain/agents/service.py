@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import AsyncIterator
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,6 +89,39 @@ class AgentOrchestrator:
             review=review,
             model=provider.model,
         )
+
+    async def run_stream(
+        self, owner: User, req: AgentRunRequest
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Same pipeline as run(), but yields (event, data) as each stage finishes."""
+        provider = get_llm_provider(model=req.model or None)
+        plan = await self._plan(provider, req.task, req.max_steps)
+        yield ("plan", {"plan": plan})
+
+        steps: list[AgentStep] = []
+        for i, sub in enumerate(plan):
+            step = await self._research(provider, owner, sub, req.repository_ids)
+            steps.append(step)
+            yield (
+                "step",
+                {
+                    "index": i,
+                    "title": step.title,
+                    "finding": step.finding,
+                    "citations": step.citations,
+                    "error": step.error,
+                },
+            )
+
+        synthesis = await self._synthesize(provider, req.task, steps)
+        yield ("synthesis", {"synthesis": synthesis})
+
+        if req.review:
+            review = await self._review(provider, req.task, steps, synthesis)
+            if review is not None:
+                yield ("review", {"verdict": review.verdict, "notes": review.notes})
+
+        yield ("done", {"model": provider.model})
 
     async def _plan(self, provider: Any, task: str, max_steps: int) -> list[str]:
         msgs = [

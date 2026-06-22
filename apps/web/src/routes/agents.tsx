@@ -1,19 +1,23 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Workflow,
   Compass,
   Search as SearchIcon,
   Sparkles,
   Play,
+  Square,
   ShieldCheck,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
-import { api, ApiError, type AgentRunResponse } from "@/lib/api";
+import { api, type AgentStep, type AgentReview } from "@/lib/api";
+import { readSse } from "@/lib/sse";
 import { cn } from "@/lib/utils";
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 const MODELS = [
   { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B · fast (recommended)" },
@@ -28,26 +32,78 @@ export function AgentsPage() {
   const [model, setModel] = useState(MODELS[0]!.id);
   const [scope, setScope] = useState<string[]>([]);
   const [review, setReview] = useState(true);
+
+  const [running, setRunning] = useState(false);
+  const [plan, setPlan] = useState<string[]>([]);
+  const [steps, setSteps] = useState<AgentStep[]>([]);
+  const [synthesis, setSynthesis] = useState("");
+  const [critic, setCritic] = useState<AgentReview | null>(null);
+  const [modelUsed, setModelUsed] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  const run = useMutation({
-    mutationFn: () =>
-      api.runAgents({ task, repository_ids: scope, model, max_steps: 3, review }),
-    onError: (e: unknown) =>
-      setError(e instanceof ApiError ? e.message : "Agent run failed"),
-    onSuccess: () => setError(null),
-  });
-
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!task.trim()) return;
-    run.mutate();
-  }
+  const abortRef = useRef<AbortController | null>(null);
 
   function toggle(id: string) {
     setScope((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   }
+
+  function stop() {
+    abortRef.current?.abort();
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!task.trim() || running) return;
+    setError(null);
+    setPlan([]);
+    setSteps([]);
+    setSynthesis("");
+    setCritic(null);
+    setModelUsed("");
+    setRunning(true);
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const params = new URLSearchParams({
+      task,
+      max_steps: "3",
+      model,
+      review: String(review),
+    });
+    if (scope.length) params.set("repository_ids", scope.join(","));
+    const url = `${BASE_URL}/api/v1/agents/run/stream?${params.toString()}`;
+
+    try {
+      for await (const ev of readSse(url, { signal: ctrl.signal })) {
+        const data = JSON.parse(ev.data);
+        if (ev.event === "plan") setPlan(data.plan ?? []);
+        else if (ev.event === "step")
+          setSteps((p) => [
+            ...p,
+            {
+              title: data.title,
+              finding: data.finding ?? "",
+              citations: data.citations ?? [],
+              error: data.error ?? null,
+            },
+          ]);
+        else if (ev.event === "synthesis") setSynthesis(data.synthesis ?? "");
+        else if (ev.event === "review")
+          setCritic({ verdict: data.verdict, notes: data.notes });
+        else if (ev.event === "done") setModelUsed(data.model ?? "");
+        else if (ev.event === "error") setError(data.message ?? "Agent run failed");
+      }
+    } catch (err) {
+      if (!ctrl.signal.aborted) {
+        setError(err instanceof Error ? err.message : "stream failed");
+      }
+    } finally {
+      setRunning(false);
+      abortRef.current = null;
+    }
+  }
+
+  const hasResult =
+    plan.length > 0 || steps.length > 0 || synthesis.length > 0 || critic !== null;
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -59,10 +115,11 @@ export function AgentsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Agents</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          A multi-agent pipeline: a <strong>planner</strong> breaks your task into
-          sub-questions, <strong>researcher</strong> agents answer each from your
-          code, and a <strong>synthesizer</strong> combines them. Token-intensive
-          (several LLM calls) — uses the model selected below.
+          A multi-agent pipeline, streamed live: a <strong>planner</strong> splits
+          your task into sub-questions, <strong>researcher</strong> agents answer
+          each from your code, a <strong>synthesizer</strong> combines them, and a{" "}
+          <strong>critic</strong> fact-checks the result. Token-intensive — uses the
+          model below.
         </p>
       </header>
 
@@ -118,115 +175,105 @@ export function AgentsPage() {
             </div>
           ) : null}
         </div>
-        <Button
-          type="submit"
-          loading={run.isPending}
-          className="bg-gradient-to-r from-violet-500 to-fuchsia-500"
-        >
-          <Play className="mr-1 h-4 w-4" /> Run agents
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="submit"
+            loading={running}
+            className="bg-gradient-to-r from-violet-500 to-fuchsia-500"
+          >
+            <Play className="mr-1 h-4 w-4" /> Run agents
+          </Button>
+          {running ? (
+            <Button type="button" variant="outline" onClick={stop}>
+              <Square className="mr-1 h-4 w-4" /> Stop
+            </Button>
+          ) : null}
+        </div>
         {error ? <div className="text-sm text-destructive">{error}</div> : null}
-        {run.isPending ? (
-          <div className="text-xs text-muted-foreground">
-            Planning → researching → synthesizing… (several LLM calls, ~15–30s)
-          </div>
-        ) : null}
       </form>
 
-      {run.data ? <AgentResult result={run.data} /> : null}
-    </div>
-  );
-}
+      {hasResult ? (
+        <div className="space-y-4">
+          {plan.length ? (
+            <Stage
+              icon={<Compass className="h-4 w-4" />}
+              title="Planner"
+              subtitle={`${plan.length} sub-question(s)`}
+              grad="from-sky-400 to-indigo-500"
+            >
+              <ol className="ml-4 list-decimal space-y-1 text-sm">
+                {plan.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ol>
+            </Stage>
+          ) : null}
 
-function AgentResult({ result }: { result: AgentRunResponse }) {
-  return (
-    <div className="space-y-4">
-      <Stage
-        icon={<Compass className="h-4 w-4" />}
-        title="Planner"
-        subtitle={`${result.plan.length} sub-question(s)`}
-        grad="from-sky-400 to-indigo-500"
-      >
-        <ol className="ml-4 list-decimal space-y-1 text-sm">
-          {result.plan.map((p, i) => (
-            <li key={i}>{p}</li>
+          {steps.map((s, i) => (
+            <Stage
+              key={i}
+              icon={<SearchIcon className="h-4 w-4" />}
+              title={`Researcher ${i + 1}`}
+              subtitle={s.title}
+              grad="from-emerald-400 to-teal-500"
+            >
+              {s.error ? (
+                <div className="text-sm text-destructive">error: {s.error}</div>
+              ) : (
+                <>
+                  <Markdown content={s.finding} />
+                  {s.citations.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {s.citations.slice(0, 8).map((c, j) => (
+                        <span
+                          key={j}
+                          className="rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-xs text-muted-foreground"
+                        >
+                          {c.file_path}:{c.start_line}-{c.end_line}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </Stage>
           ))}
-        </ol>
-      </Stage>
 
-      {result.steps.map((s, i) => (
-        <Stage
-          key={i}
-          icon={<SearchIcon className="h-4 w-4" />}
-          title={`Researcher ${i + 1}`}
-          subtitle={s.title}
-          grad="from-emerald-400 to-teal-500"
-        >
-          {s.error ? (
-            <div className="text-sm text-destructive">error: {s.error}</div>
-          ) : (
-            <>
-              <Markdown content={s.finding} />
-              {s.citations.length ? (
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {s.citations.slice(0, 8).map((c, j) => (
-                    <span
-                      key={j}
-                      className="rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-xs text-muted-foreground"
-                    >
-                      {c.file_path}:{c.start_line}-{c.end_line}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </>
-          )}
-        </Stage>
-      ))}
+          {running && plan.length > 0 && steps.length < plan.length ? (
+            <div className="px-1 text-xs text-muted-foreground">researching…</div>
+          ) : null}
 
-      <Stage
-        icon={<Sparkles className="h-4 w-4" />}
-        title="Synthesizer"
-        subtitle="Final answer"
-        grad="from-violet-500 to-fuchsia-500"
-      >
-        <Markdown content={result.synthesis} />
-      </Stage>
+          {synthesis ? (
+            <Stage
+              icon={<Sparkles className="h-4 w-4" />}
+              title="Synthesizer"
+              subtitle="Final answer"
+              grad="from-violet-500 to-fuchsia-500"
+            >
+              <Markdown content={synthesis} />
+            </Stage>
+          ) : null}
 
-      {result.review ? (
-        <Stage
-          icon={<ShieldCheck className="h-4 w-4" />}
-          title="Critic"
-          subtitle="fact-checked against the code findings"
-          grad="from-amber-400 to-orange-500"
-        >
-          <div className="mb-2">
-            <VerdictBadge verdict={result.review.verdict} />
-          </div>
-          <Markdown content={result.review.notes} />
-        </Stage>
+          {critic ? (
+            <Stage
+              icon={<ShieldCheck className="h-4 w-4" />}
+              title="Critic"
+              subtitle="fact-checked against the code findings"
+              grad="from-amber-400 to-orange-500"
+            >
+              <div className="mb-2">
+                <VerdictBadge verdict={critic.verdict} />
+              </div>
+              <Markdown content={critic.notes} />
+            </Stage>
+          ) : null}
+
+          {modelUsed ? (
+            <div className="text-xs text-muted-foreground">model: {modelUsed}</div>
+          ) : null}
+        </div>
       ) : null}
-
-      <div className="text-xs text-muted-foreground">model: {result.model}</div>
     </div>
-  );
-}
-
-function VerdictBadge({ verdict }: { verdict: string }) {
-  const map: Record<string, string> = {
-    accurate: "bg-emerald-500/15 text-emerald-400",
-    issues: "bg-destructive/15 text-destructive",
-    uncertain: "bg-amber-500/15 text-amber-500",
-  };
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-        map[verdict] ?? "bg-muted text-muted-foreground",
-      )}
-    >
-      {verdict}
-    </span>
   );
 }
 
@@ -263,6 +310,24 @@ function Stage({
       </div>
       {children}
     </div>
+  );
+}
+
+function VerdictBadge({ verdict }: { verdict: string }) {
+  const map: Record<string, string> = {
+    accurate: "bg-emerald-500/15 text-emerald-400",
+    issues: "bg-destructive/15 text-destructive",
+    uncertain: "bg-amber-500/15 text-amber-500",
+  };
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+        map[verdict] ?? "bg-muted text-muted-foreground",
+      )}
+    >
+      {verdict}
+    </span>
   );
 }
 

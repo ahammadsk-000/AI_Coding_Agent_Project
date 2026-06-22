@@ -14,6 +14,17 @@ against them.
 - **App:** https://ai-coding-agent-project.vercel.app
 - **API docs:** https://ai-coding-agent-api-djyt.onrender.com/docs
 
+<!-- DEMO GIF: record a short clip, save it as docs/demo.gif, then uncomment: -->
+<!-- ![AI Coding Agent demo](docs/demo.gif) -->
+
+> 🎥 **Demo GIF (recommended — ~15–20s):** record the flow
+> **log in → a repo at "ready" → ask a question in Chat (markdown + citations) →
+> run the Agents pipeline**, save it as `docs/demo.gif`, and uncomment the
+> `![…](docs/demo.gif)` line above.
+> Capture with [ScreenToGif](https://www.screentogif.com) (Windows) /
+> [Kap](https://getkap.co) (Mac), or record an `.mp4` and convert at
+> [ezgif.com](https://ezgif.com/video-to-gif). Keep it ≤ ~5 MB, ~1000px wide.
+
 > Create an account to try it. The backend runs on a free tier and **sleeps after
 > ~15 min idle**, so the first request can take 30–60s to wake. On the hosted
 > deployment the sandbox is disabled (managed PaaS has no Docker socket) and
