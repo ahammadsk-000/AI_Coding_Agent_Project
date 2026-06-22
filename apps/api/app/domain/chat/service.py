@@ -649,8 +649,23 @@ class ChatService:
     async def _build_memory_block(
         self, owner: User, conv: Conversation, query: str, *, just_saved: str | None
     ) -> str:
-        """Recall durable memories relevant to the turn → system-prompt section."""
+        """Build the 'what you remember about this user' system-prompt section.
+
+        Combines the user's durable memories straight from Postgres (the source
+        of truth — always available, so this works even when vector recall is
+        unavailable, e.g. after switching embedding providers) with any
+        vector-recalled memories relevant to this turn.
+        """
         repo_ids = [UUID(r) for r in (conv.repository_ids or [])]
+
+        # Always-available: the user's stored facts from Postgres (capped to keep
+        # the prompt bounded).
+        try:
+            stored = await self.memory.list_memories(owner, scope=MemoryScope.user)
+        except Exception:
+            stored = []
+
+        # Best-effort relevance augmentation via vector search.
         try:
             recalled = await self.memory.recall(
                 owner, query=query, repository_ids=repo_ids, k=5
@@ -658,19 +673,32 @@ class ChatService:
         except Exception:
             recalled = []
 
-        lines: list[str] = ["# What you remember about this user"]
+        facts: list[str] = []
+        seen: set[str] = set()
+
+        def _add(text: str) -> None:
+            t = (text or "").strip()
+            if t and t.lower() not in seen:
+                facts.append(t)
+                seen.add(t.lower())
+
         if just_saved:
-            lines.append(f"- (just saved this turn) {just_saved}")
+            _add(just_saved)
+        for m in stored[:30]:
+            _add(m.content)
         for r in recalled:
-            # avoid duplicating the just-saved fact
-            if just_saved and r.content.strip() == just_saved.strip():
-                continue
-            lines.append(f"- {r.content}")
-        if len(lines) == 1:
-            lines.append("(no stored memories relevant to this message)")
+            _add(r.content)
+
+        lines: list[str] = ["# What you remember about this user"]
+        if facts:
+            lines.extend(f"- {f}" for f in facts)
+        else:
+            lines.append("(no stored memories yet)")
         lines.append(
-            "\nUse these remembered facts naturally when relevant. If the user "
-            "just asked you to remember something, briefly confirm you've noted it."
+            "\nUse these remembered facts naturally when relevant — if the user "
+            "asks about a preference you have stored, answer from it directly "
+            "rather than guessing. If they just asked you to remember something, "
+            "briefly confirm you've noted it."
         )
         return "\n".join(lines)
 
