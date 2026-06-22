@@ -5,6 +5,7 @@ import { Brain, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, ApiError, type Memory, type MemoryScope } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const SCOPE_COLORS: Record<MemoryScope, string> = {
   user: "bg-primary/15 text-primary",
@@ -46,36 +47,43 @@ export function MemoryPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Brain className="h-6 w-6 text-primary" /> Memory
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md">
+            <Brain className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Memory</h1>
+        </div>
         <p className="text-sm text-muted-foreground">
-          Durable facts the assistant recalls across conversations. Add notes here,
-          or just tell the assistant "remember that ..." in a chat.
+          Durable facts the assistant recalls across conversations. Add notes
+          here, or just tell the assistant "remember that ..." in a chat.
         </p>
       </header>
 
-      <section className="rounded-lg border border-border bg-card p-4">
+      <section className="rounded-xl border border-border bg-card/50 p-4 backdrop-blur">
         <form onSubmit={handleAdd} className="flex gap-2">
           <Input
             placeholder="e.g. I prefer TypeScript over JavaScript for new code"
             value={content}
             onChange={(e) => setContent(e.target.value)}
           />
-          <Button type="submit" loading={createMutation.isPending}>
-            <Plus className="h-4 w-4 mr-1" /> Remember
+          <Button
+            type="submit"
+            loading={createMutation.isPending}
+            className="bg-gradient-to-r from-sky-500 to-indigo-500"
+          >
+            <Plus className="mr-1 h-4 w-4" /> Remember
           </Button>
         </form>
-        {error ? <div className="text-sm text-destructive mt-2">{error}</div> : null}
+        {error ? <div className="mt-2 text-sm text-destructive">{error}</div> : null}
       </section>
 
       <section className="space-y-2">
         {isLoading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : (memories ?? []).length === 0 ? (
-          <div className="text-sm text-muted-foreground">
+          <div className="rounded-xl border border-border bg-card/40 p-8 text-center text-sm text-muted-foreground">
             No memories yet. Add one above, or say "remember that ..." in a chat.
           </div>
         ) : (
@@ -92,32 +100,24 @@ export function MemoryPage() {
   );
 }
 
-function MemoryItem({
-  memory,
-  onDelete,
-}: {
-  memory: Memory;
-  onDelete: () => void;
-}) {
+function MemoryItem({ memory, onDelete }: { memory: Memory; onDelete: () => void }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3 flex items-start justify-between gap-3">
-      <div className="min-w-0 space-y-1">
+    <div className="group flex items-start justify-between gap-3 rounded-xl border border-border bg-card/60 p-3.5 backdrop-blur transition-colors hover:border-primary/30">
+      <div className="min-w-0 space-y-1.5">
         <div className="text-sm">{memory.content}</div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className={"rounded px-1.5 py-0.5 " + SCOPE_COLORS[memory.scope]}>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className={cn("rounded-full px-2 py-0.5 capitalize", SCOPE_COLORS[memory.scope])}>
             {memory.scope}
           </span>
-          <span>{memory.source}</span>
-          {memory.access_count > 0 ? (
-            <span>· recalled {memory.access_count}×</span>
-          ) : null}
+          <span className="capitalize">{memory.source}</span>
+          {memory.access_count > 0 ? <span>· recalled {memory.access_count}×</span> : null}
         </div>
       </div>
       <button
         onClick={() => {
           if (confirm("Forget this memory?")) onDelete();
         }}
-        className="text-muted-foreground hover:text-destructive"
+        className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
         title="Forget"
       >
         <Trash2 className="h-4 w-4" />

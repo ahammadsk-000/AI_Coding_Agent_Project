@@ -13,36 +13,41 @@ export function GitHubPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Github className="h-6 w-6" /> GitHub
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 shadow-md">
+            <Github className="h-5 w-5 text-white" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">GitHub</h1>
+        </div>
         <p className="text-sm text-muted-foreground">
           Generate pull requests and run AI code reviews on existing PRs.
         </p>
       </header>
 
-      <section className="rounded-lg border border-border bg-card p-3 text-sm flex items-center gap-2">
+      <section className="flex items-center gap-2 rounded-xl border border-border bg-card/60 p-3.5 text-sm backdrop-blur">
         {status?.configured ? (
           status.login ? (
             <>
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              Connected as <span className="font-mono">{status.login}</span>
-              {status.name ? ` (${status.name})` : ""}
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+              <span>
+                Connected as <span className="font-mono">{status.login}</span>
+                {status.name ? ` (${status.name})` : ""}
+              </span>
             </>
           ) : (
             <>
-              <XCircle className="h-4 w-4 text-amber-500" />
-              Token configured but invalid or lacking scope.
+              <XCircle className="h-4 w-4 shrink-0 text-amber-500" />
+              <span>Token configured but invalid or lacking scope.</span>
             </>
           )
         ) : (
           <>
-            <XCircle className="h-4 w-4 text-destructive" />
+            <XCircle className="h-4 w-4 shrink-0 text-destructive" />
             <span>
-              No token configured. Set <code>GITHUB_TOKEN=ghp_...</code> in{" "}
-              <code>.env</code> and recreate the api container.
+              No token configured. Set <code>GITHUB_TOKEN=ghp_...</code> on the
+              server and redeploy.
             </span>
           </>
         )}
@@ -79,20 +84,30 @@ function ReviewPRSection({ disabled }: { disabled: boolean }) {
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4 space-y-3">
-      <h2 className="text-sm font-medium flex items-center gap-2">
+    <section className="space-y-3 rounded-xl border border-border bg-card/60 p-4 backdrop-blur">
+      <h2 className="flex items-center gap-2 text-sm font-medium">
         <Bot className="h-4 w-4 text-primary" /> AI review a pull request
       </h2>
       <form onSubmit={submit} className="grid grid-cols-[1fr_1fr_90px_auto] gap-2">
         <Input placeholder="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
         <Input placeholder="repo" value={repo} onChange={(e) => setRepo(e.target.value)} />
         <Input placeholder="PR #" value={number} onChange={(e) => setNumber(e.target.value)} />
-        <Button type="submit" loading={mutation.isPending} disabled={disabled}>
+        <Button
+          type="submit"
+          loading={mutation.isPending}
+          disabled={disabled}
+          className="bg-gradient-to-r from-sky-500 to-indigo-500"
+        >
           Review
         </Button>
       </form>
-      <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-        <input type="checkbox" checked={post} onChange={(e) => setPost(e.target.checked)} />
+      <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={post}
+          onChange={(e) => setPost(e.target.checked)}
+          className="accent-sky-500"
+        />
         Post the review as a PR comment
       </label>
       {error ? <div className="text-sm text-destructive">{error}</div> : null}
@@ -108,7 +123,7 @@ function ReviewPRSection({ disabled }: { disabled: boolean }) {
               → posted comment on the PR
             </a>
           ) : null}
-          <pre className="text-xs bg-muted/30 rounded p-3 whitespace-pre-wrap max-h-96 overflow-auto">
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 text-xs">
             {mutation.data.review}
           </pre>
         </div>
@@ -150,8 +165,8 @@ function CreatePRSection({ disabled }: { disabled: boolean }) {
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4 space-y-3">
-      <h2 className="text-sm font-medium flex items-center gap-2">
+    <section className="space-y-3 rounded-xl border border-border bg-card/60 p-4 backdrop-blur">
+      <h2 className="flex items-center gap-2 text-sm font-medium">
         <GitPullRequest className="h-4 w-4 text-primary" /> Create a pull request
       </h2>
       <form onSubmit={submit} className="space-y-2">
@@ -168,10 +183,15 @@ function CreatePRSection({ disabled }: { disabled: boolean }) {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={4}
-          className="w-full font-mono text-sm rounded-md bg-card border border-border px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full rounded-lg border border-border bg-card/60 px-3 py-2 font-mono text-sm backdrop-blur focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        <Button type="submit" loading={mutation.isPending} disabled={disabled}>
-          <GitPullRequest className="h-4 w-4 mr-1" /> Create PR
+        <Button
+          type="submit"
+          loading={mutation.isPending}
+          disabled={disabled}
+          className="bg-gradient-to-r from-sky-500 to-indigo-500"
+        >
+          <GitPullRequest className="mr-1 h-4 w-4" /> Create PR
         </Button>
       </form>
       {error ? <div className="text-sm text-destructive">{error}</div> : null}
@@ -180,7 +200,7 @@ function CreatePRSection({ disabled }: { disabled: boolean }) {
           href={mutation.data.url}
           target="_blank"
           rel="noreferrer"
-          className="text-sm text-primary hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
         >
           → opened PR #{mutation.data.number} ({mutation.data.branch})
         </a>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, GitBranch, X } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -8,6 +9,7 @@ import { api, type CodeChunkPreview, type IngestJob, type RepositoryFile } from 
 import { readSse } from "@/lib/sse";
 import { useReposStore } from "@/stores/repos-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { cn } from "@/lib/utils";
 
 // Map our internal language tags (from app.infrastructure.parsers.language) to
 // the language ids Prism recognizes. Unknown tags fall back to plaintext.
@@ -72,19 +74,27 @@ export function RepositoryDetailPage() {
   const currentJob = jobs?.[0];
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <Link to="/repositories" className="text-sm text-muted-foreground hover:underline">
-        ← All repositories
+    <div className="max-w-5xl space-y-6">
+      <Link
+        to="/repositories"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" /> All repositories
       </Link>
-      <header>
-        <h1 className="text-2xl font-semibold">{repo?.name ?? "…"}</h1>
-        <div className="text-xs text-muted-foreground">{repo?.url}</div>
+      <header className="flex items-center gap-2.5">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-500 shadow-md">
+          <GitBranch className="h-5 w-5 text-white" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">{repo?.name ?? "…"}</h1>
+          <div className="truncate text-xs text-muted-foreground">{repo?.url}</div>
+        </div>
       </header>
 
       {currentJob ? <JobPanel repoId={repoId} job={currentJob} /> : null}
 
-      <section>
-        <h2 className="text-sm font-medium mb-2">Recent jobs</h2>
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium">Recent jobs</h2>
         <div className="space-y-2">
           {(jobs ?? []).map((j) => (
             <JobRow key={j.id} job={j} />
@@ -149,9 +159,12 @@ function JobPanel({ repoId, job }: { repoId: string; job: IngestJob }) {
   const chunksIndexed = progress?.chunksIndexed ?? job.chunks_indexed;
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4 space-y-2">
-      <div className="text-sm font-medium">Active ingest</div>
-      <div className="grid grid-cols-3 gap-3 text-sm">
+    <section className="space-y-3 rounded-xl border border-border bg-card/60 p-4 backdrop-blur">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+        Active ingest
+      </div>
+      <div className="grid grid-cols-3 gap-3">
         <Stat label="Files seen" value={filesSeen} />
         <Stat label="Files indexed" value={filesIndexed} />
         <Stat label="Chunks indexed" value={chunksIndexed} />
@@ -165,9 +178,9 @@ function JobPanel({ repoId, job }: { repoId: string; job: IngestJob }) {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded border border-border p-2">
+    <div className="rounded-lg border border-border bg-card/40 p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="font-mono text-lg">{value}</div>
+      <div className="mt-1 font-mono text-2xl font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
@@ -185,18 +198,14 @@ function JobRow({ job }: { job: IngestJob }) {
   const hasError = job.status === "failed" && !!job.error;
 
   return (
-    <div className="rounded border border-border bg-card p-3 text-sm">
-      <div className="flex justify-between items-center">
-        <span
-          className={
-            "text-xs rounded px-2 py-0.5 " + JOB_STATUS_COLORS[job.status]
-          }
-        >
+    <div className="rounded-xl border border-border bg-card/60 p-3.5 text-sm backdrop-blur">
+      <div className="flex items-center justify-between">
+        <span className={cn("rounded-full px-2 py-0.5 text-xs capitalize", JOB_STATUS_COLORS[job.status])}>
           {job.status}
         </span>
         <code className="text-xs text-muted-foreground">{job.id.slice(0, 8)}</code>
       </div>
-      <div className="text-xs text-muted-foreground mt-1">
+      <div className="mt-1.5 text-xs text-muted-foreground">
         files: {job.files_indexed}/{job.files_seen} · chunks: {job.chunks_indexed}
       </div>
       {hasError ? (
@@ -208,7 +217,7 @@ function JobRow({ job }: { job: IngestJob }) {
             {showError ? "Hide error ▴" : "Show error ▾"}
           </button>
           {showError ? (
-            <pre className="mt-1 text-xs text-destructive whitespace-pre-wrap break-words font-mono bg-destructive/5 rounded p-2 max-h-48 overflow-auto">
+            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-destructive/5 p-2 font-mono text-xs text-destructive">
               {job.error}
             </pre>
           ) : null}
@@ -268,13 +277,13 @@ function FilesSection({ repoId }: { repoId: string }) {
       {isLoading ? (
         <div className="text-sm text-muted-foreground">Loading…</div>
       ) : sortedFiles.length === 0 ? (
-        <div className="text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border bg-card/40 p-8 text-center text-sm text-muted-foreground">
           No indexed files yet. Run an ingest first.
         </div>
       ) : (
-        <div className="rounded border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-border bg-card/60 backdrop-blur">
           <table className="w-full text-sm">
-            <thead className="bg-muted/30">
+            <thead className="bg-muted/20">
               <tr className="text-left">
                 <Th onClick={() => toggleSort("path")}>Path{arrow("path")}</Th>
                 <Th onClick={() => toggleSort("language")}>Language{arrow("language")}</Th>
@@ -294,20 +303,20 @@ function FilesSection({ repoId }: { repoId: string }) {
                 <tr
                   key={f.id}
                   onClick={() => setSelectedFile(f)}
-                  className={
-                    "border-t border-border cursor-pointer hover:bg-muted/20 " +
-                    (selectedFile?.id === f.id ? "bg-muted/30" : "")
-                  }
+                  className={cn(
+                    "cursor-pointer border-t border-border transition-colors hover:bg-muted/20",
+                    selectedFile?.id === f.id && "bg-primary/5",
+                  )}
                 >
-                  <td className="px-3 py-2 font-mono text-xs break-all">{f.path}</td>
+                  <td className="break-all px-3 py-2 font-mono text-xs">{f.path}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
                     {f.language ?? "—"}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs">
+                  <td className="px-3 py-2 text-right text-xs tabular-nums">
                     {formatBytes(f.size_bytes)}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs">{f.lines}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs">{f.chunk_count}</td>
+                  <td className="px-3 py-2 text-right text-xs tabular-nums">{f.lines}</td>
+                  <td className="px-3 py-2 text-right text-xs tabular-nums">{f.chunk_count}</td>
                 </tr>
               ))}
             </tbody>
@@ -338,11 +347,11 @@ function Th({
   return (
     <th
       onClick={onClick}
-      className={
-        "px-3 py-2 text-xs font-medium text-muted-foreground select-none " +
-        (onClick ? "cursor-pointer hover:text-foreground " : "") +
-        (className ?? "")
-      }
+      className={cn(
+        "select-none px-3 py-2 text-xs font-medium text-muted-foreground",
+        onClick && "cursor-pointer hover:text-foreground",
+        className,
+      )}
     >
       {children}
     </th>
@@ -364,10 +373,10 @@ function ChunkPreview({
   });
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-      <div className="flex justify-between items-start gap-3">
-        <div>
-          <div className="text-sm font-medium font-mono break-all">{file.path}</div>
+    <div className="space-y-3 rounded-xl border border-border bg-card/60 p-4 backdrop-blur">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="break-all font-mono text-sm font-medium">{file.path}</div>
           <div className="text-xs text-muted-foreground">
             {file.language ?? "unknown"} · {formatBytes(file.size_bytes)} · {file.lines} lines ·{" "}
             {file.chunk_count} chunk{file.chunk_count === 1 ? "" : "s"}
@@ -375,9 +384,10 @@ function ChunkPreview({
         </div>
         <button
           onClick={onClose}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Close"
         >
-          Close ✕
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -388,8 +398,8 @@ function ChunkPreview({
       ) : (
         <div className="space-y-3">
           {chunks!.map((c: CodeChunkPreview, idx) => (
-            <div key={c.id} className="rounded border border-border overflow-hidden">
-              <div className="flex justify-between items-center px-2 py-1 bg-muted/30 text-xs text-muted-foreground">
+            <div key={c.id} className="overflow-hidden rounded-lg border border-border">
+              <div className="flex items-center justify-between bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
                 <span>
                   Chunk #{idx + 1} · lines {c.start_line}–{c.end_line}
                 </span>
