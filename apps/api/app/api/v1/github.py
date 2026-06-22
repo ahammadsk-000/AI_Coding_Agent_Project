@@ -32,6 +32,8 @@ async def create_pull_request(
         return await GitHubService().create_pr(payload)
     except GitHubError as e:
         raise ConflictError(f"GitHub: {e.message}") from e
+    except Exception as e:  # noqa: BLE001 — surface a clear message, not a 500
+        raise ConflictError(f"Create PR failed: {type(e).__name__}: {e}") from e
 
 
 @router.post("/review", response_model=ReviewPRResponse)
@@ -42,3 +44,5 @@ async def review_pull_request(
         return await GitHubService().review_pr(payload)
     except GitHubError as e:
         raise ConflictError(f"GitHub: {e.message}") from e
+    except Exception as e:  # noqa: BLE001 — LLM/network errors: show the real reason
+        raise ConflictError(f"Review failed: {type(e).__name__}: {e}") from e
