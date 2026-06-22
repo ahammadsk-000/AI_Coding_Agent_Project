@@ -34,4 +34,5 @@ class AgentRunResponse(BaseModel):
     steps: list[AgentStep]
     synthesis: str
     review: AgentReview | None = None
+    refined: bool = False  # the critic flagged issues and the synthesis was revised
     model: str

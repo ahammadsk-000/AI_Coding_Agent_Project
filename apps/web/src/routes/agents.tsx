@@ -38,6 +38,8 @@ export function AgentsPage() {
   const [steps, setSteps] = useState<AgentStep[]>([]);
   const [synthesis, setSynthesis] = useState("");
   const [critic, setCritic] = useState<AgentReview | null>(null);
+  const [refined, setRefined] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [modelUsed, setModelUsed] = useState("");
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -58,6 +60,8 @@ export function AgentsPage() {
     setSteps([]);
     setSynthesis("");
     setCritic(null);
+    setRefined(false);
+    setRefining(false);
     setModelUsed("");
     setRunning(true);
 
@@ -86,7 +90,13 @@ export function AgentsPage() {
               error: data.error ?? null,
             },
           ]);
-        else if (ev.event === "synthesis") setSynthesis(data.synthesis ?? "");
+        else if (ev.event === "synthesis") {
+          setSynthesis(data.synthesis ?? "");
+          if (data.refined) {
+            setRefined(true);
+            setRefining(false);
+          }
+        } else if (ev.event === "refining") setRefining(true);
         else if (ev.event === "review")
           setCritic({ verdict: data.verdict, notes: data.notes });
         else if (ev.event === "done") setModelUsed(data.model ?? "");
@@ -250,8 +260,19 @@ export function AgentsPage() {
               subtitle="Final answer"
               grad="from-violet-500 to-fuchsia-500"
             >
+              {refined ? (
+                <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-xs font-medium text-violet-400">
+                  <Sparkles className="h-3 w-3" /> self-corrected after critic feedback
+                </div>
+              ) : null}
               <Markdown content={synthesis} />
             </Stage>
+          ) : null}
+
+          {refining ? (
+            <div className="px-1 text-xs text-muted-foreground">
+              critic found issues — revising the answer…
+            </div>
           ) : null}
 
           {critic ? (

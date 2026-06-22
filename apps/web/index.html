@@ -6,6 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
     <title>AI Coding Agent</title>
+    <script>
+      // Apply the saved theme before paint to avoid a flash.
+      (function () {
+        try {
+          if (localStorage.getItem("aca.theme") === "light")
+            document.documentElement.classList.remove("dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="min-h-screen bg-background text-foreground antialiased">
     <div id="root"></div>

@@ -81,12 +81,21 @@ class AgentOrchestrator:
             if req.review
             else None
         )
+        refined = False
+        # Reflexion: if the critic flagged issues, revise once and re-check.
+        if review is not None and review.verdict == "issues":
+            improved = await self._refine(provider, req.task, steps, synthesis, review.notes)
+            if improved.strip() and improved != synthesis:
+                synthesis = improved
+                review = await self._review(provider, req.task, steps, synthesis) or review
+                refined = True
         return AgentRunResponse(
             task=req.task,
             plan=plan,
             steps=steps,
             synthesis=synthesis,
             review=review,
+            refined=refined,
             model=provider.model,
         )
 
@@ -120,6 +129,21 @@ class AgentOrchestrator:
             review = await self._review(provider, req.task, steps, synthesis)
             if review is not None:
                 yield ("review", {"verdict": review.verdict, "notes": review.notes})
+                # Reflexion: revise once if the critic found issues.
+                if review.verdict == "issues":
+                    yield ("refining", {})
+                    improved = await self._refine(
+                        provider, req.task, steps, synthesis, review.notes
+                    )
+                    if improved.strip() and improved != synthesis:
+                        synthesis = improved
+                        yield ("synthesis", {"synthesis": synthesis, "refined": True})
+                        review2 = await self._review(provider, req.task, steps, synthesis)
+                        if review2 is not None:
+                            yield (
+                                "review",
+                                {"verdict": review2.verdict, "notes": review2.notes},
+                            )
 
         yield ("done", {"model": provider.model})
 
@@ -206,6 +230,32 @@ class AgentOrchestrator:
             return resp.content.strip()
         except Exception as e:  # noqa: BLE001
             return f"(synthesis failed: {type(e).__name__}: {e})"
+
+    async def _refine(
+        self, provider: Any, task: str, steps: list[AgentStep], prev: str, critique: str
+    ) -> str:
+        """Reflexion: revise the synthesis using the critic's feedback."""
+        findings = "\n\n".join(
+            f"### {s.title}\n{s.finding}" for s in steps if s.finding.strip()
+        )
+        msgs = [
+            ChatMessage(role="system", content=_SYNTH_SYS),
+            ChatMessage(
+                role="user",
+                content=(
+                    f"Original task: {task}\n\n"
+                    f"Research findings (ground truth from code):\n{findings}\n\n"
+                    f"Your previous answer:\n{prev}\n\n"
+                    f"A reviewer flagged these problems — revise the answer to fix "
+                    f"them, staying strictly grounded in the findings:\n{critique}"
+                ),
+            ),
+        ]
+        try:
+            resp = await provider.chat(msgs, temperature=0.2, max_tokens=800)
+            return resp.content.strip()
+        except Exception:  # noqa: BLE001
+            return prev
 
     async def _review(
         self, provider: Any, task: str, steps: list[AgentStep], synthesis: str

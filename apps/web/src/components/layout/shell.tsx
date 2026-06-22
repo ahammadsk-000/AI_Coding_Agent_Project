@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Outlet, NavLink } from "react-router-dom";
 import {
   LogOut,
@@ -11,11 +12,15 @@ import {
   Settings,
   Sparkles,
   Workflow,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CommandPalette } from "@/components/layout/command-palette";
 import { api } from "@/lib/api";
 import { SANDBOX_ENABLED } from "@/lib/features";
+import { applyTheme, getStoredTheme, type Theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn, initials } from "@/lib/utils";
 
@@ -45,7 +50,8 @@ export function AppShell() {
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 shadow-lg shadow-sky-500/20">
             <Sparkles className="h-5 w-5 text-white" />
           </div>
-          <span className="font-semibold tracking-tight">AI Coding Agent</span>
+          <span className="flex-1 font-semibold tracking-tight">AI Coding Agent</span>
+          <ThemeToggle />
         </div>
 
         {/* nav */}
@@ -86,7 +92,27 @@ export function AppShell() {
       <main className="overflow-auto p-6">
         <Outlet />
       </main>
+
+      <CommandPalette />
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<Theme>(getStoredTheme());
+  function toggle() {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    setTheme(next);
+  }
+  return (
+    <button
+      onClick={toggle}
+      title="Toggle theme"
+      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
   );
 }
 
