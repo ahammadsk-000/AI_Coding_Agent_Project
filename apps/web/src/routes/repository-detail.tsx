@@ -6,6 +6,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { api, type CodeChunkPreview, type IngestJob, type RepositoryFile } from "@/lib/api";
+import { InsightsSection } from "@/components/repo/insights-section";
 import { readSse } from "@/lib/sse";
 import { useReposStore } from "@/stores/repos-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -101,6 +102,8 @@ export function RepositoryDetailPage() {
           ))}
         </div>
       </section>
+
+      <InsightsSection repoId={repoId} />
 
       <FilesSection repoId={repoId} />
     </div>

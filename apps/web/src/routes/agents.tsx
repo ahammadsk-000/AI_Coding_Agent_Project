@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Workflow,
@@ -114,6 +114,18 @@ export function AgentsPage() {
 
   const hasResult =
     plan.length > 0 || steps.length > 0 || synthesis.length > 0 || critic !== null;
+
+  // Rough token estimate (~4 chars/token) — surfaces cost awareness on the free tier.
+  const estTokens = useMemo(() => {
+    const text = [
+      task,
+      ...plan,
+      ...steps.map((s) => s.finding),
+      synthesis,
+      critic?.notes ?? "",
+    ].join(" ");
+    return Math.round(text.length / 4);
+  }, [task, plan, steps, synthesis, critic]);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -290,7 +302,15 @@ export function AgentsPage() {
           ) : null}
 
           {modelUsed ? (
-            <div className="text-xs text-muted-foreground">model: {modelUsed}</div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>model: {modelUsed}</span>
+              <span
+                className="rounded-full border border-border px-2 py-0.5"
+                title="rough estimate from response length (~4 chars/token)"
+              >
+                ≈ {estTokens.toLocaleString()} tokens
+              </span>
+            </div>
           ) : null}
         </div>
       ) : null}

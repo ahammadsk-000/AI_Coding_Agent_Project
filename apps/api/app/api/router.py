@@ -8,6 +8,7 @@ from app.api.v1 import auth as v1_auth
 from app.api.v1 import chat as v1_chat
 from app.api.v1 import github as v1_github
 from app.api.v1 import health as v1_health
+from app.api.v1 import insights as v1_insights
 from app.api.v1 import memory as v1_memory
 from app.api.v1 import repositories as v1_repos
 from app.api.v1 import sandbox as v1_sandbox
@@ -29,3 +30,4 @@ api_router.include_router(v1_memory.router, prefix="/api/v1/memories", tags=["me
 api_router.include_router(v1_sandbox.router, prefix="/api/v1/sandbox", tags=["sandbox"])
 api_router.include_router(v1_github.router, prefix="/api/v1/github", tags=["github"])
 api_router.include_router(v1_agents.router, prefix="/api/v1/agents", tags=["agents"])
+api_router.include_router(v1_insights.router, prefix="/api/v1/insights", tags=["insights"])

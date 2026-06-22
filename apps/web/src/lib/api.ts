@@ -536,6 +536,14 @@ export const api = {
       { method: "POST", body },
     ),
 
+  // ---- repo insights ----
+  repoDiagram: (id: string) =>
+    apiRequest<{ mermaid: string }>(`/api/v1/insights/${id}/diagram`, { method: "POST" }),
+  repoDocs: (id: string) =>
+    apiRequest<{ markdown: string }>(`/api/v1/insights/${id}/docs`, { method: "POST" }),
+  repoCodemap: (id: string) =>
+    apiRequest<{ mermaid: string }>(`/api/v1/insights/${id}/codemap`),
+
   // ---- multi-agent pipeline ----
   runAgents: (body: {
     task: string;
