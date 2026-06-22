@@ -13,6 +13,7 @@ import {
   Pencil,
   Sparkles,
   MessageSquare,
+  GitPullRequest,
 } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -20,6 +21,11 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
+import {
+  CitationPanel,
+  PrModal,
+  extractFirstCodeBlock,
+} from "@/components/chat/panels";
 import {
   api,
   ApiError,
@@ -230,6 +236,8 @@ function ChatThread({ conversationId }: { conversationId: string }) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<StreamingState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [citation, setCitation] = useState<ChatCitation | null>(null);
+  const [prDraft, setPrDraft] = useState<{ code: string; lang: string } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -347,9 +355,17 @@ function ChatThread({ conversationId }: { conversationId: string }) {
         {data.messages
           .filter((m) => m.role !== "system" && m.role !== "tool")
           .map((m) => (
-            <MessageBubble key={m.id} message={m} userInitials={userInitials} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              userInitials={userInitials}
+              onOpenCitation={setCitation}
+              onOpenPr={setPrDraft}
+            />
           ))}
-        {streaming ? <StreamingBubble state={streaming} /> : null}
+        {streaming ? (
+          <StreamingBubble state={streaming} onOpenCitation={setCitation} />
+        ) : null}
         {error ? <div className="text-xs text-destructive">{error}</div> : null}
         <div ref={bottomRef} />
       </div>
@@ -388,6 +404,13 @@ function ChatThread({ conversationId }: { conversationId: string }) {
           </Button>
         )}
       </form>
+
+      {citation ? (
+        <CitationPanel citation={citation} onClose={() => setCitation(null)} />
+      ) : null}
+      {prDraft ? (
+        <PrModal initial={prDraft} onClose={() => setPrDraft(null)} />
+      ) : null}
     </div>
   );
 }
@@ -488,11 +511,16 @@ function ToolChip({ label }: { label: string }) {
 function MessageBubble({
   message,
   userInitials,
+  onOpenCitation,
+  onOpenPr,
 }: {
   message: ChatMessage;
   userInitials: string;
+  onOpenCitation: (c: ChatCitation) => void;
+  onOpenPr: (draft: { code: string; lang: string }) => void;
 }) {
   const isUser = message.role === "user";
+  const prDraft = !isUser ? extractFirstCodeBlock(message.content) : null;
   return (
     <div className={cn("flex gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
       <Avatar isUser={isUser} userInitials={userInitials} />
@@ -514,13 +542,29 @@ function MessageBubble({
             })}
           </div>
         ) : null}
-        {message.citations?.length ? <CitationStrip cites={message.citations} /> : null}
+        {message.citations?.length ? (
+          <CitationStrip cites={message.citations} onOpen={onOpenCitation} />
+        ) : null}
+        {prDraft ? (
+          <button
+            onClick={() => onOpenPr(prDraft)}
+            className="mt-2 inline-flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+          >
+            <GitPullRequest className="h-3 w-3 text-primary" /> Open as PR
+          </button>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function StreamingBubble({ state }: { state: StreamingState }) {
+function StreamingBubble({
+  state,
+  onOpenCitation,
+}: {
+  state: StreamingState;
+  onOpenCitation: (c: ChatCitation) => void;
+}) {
   return (
     <div className="flex flex-row gap-2.5">
       <Avatar isUser={false} userInitials="" />
@@ -536,7 +580,9 @@ function StreamingBubble({ state }: { state: StreamingState }) {
             ))}
           </div>
         ) : null}
-        {state.citations.length ? <CitationStrip cites={state.citations} /> : null}
+        {state.citations.length ? (
+          <CitationStrip cites={state.citations} onOpen={onOpenCitation} />
+        ) : null}
       </div>
     </div>
   );
@@ -552,7 +598,13 @@ function TypingDots() {
   );
 }
 
-function CitationStrip({ cites }: { cites: ChatCitation[] }) {
+function CitationStrip({
+  cites,
+  onOpen,
+}: {
+  cites: ChatCitation[];
+  onOpen: (c: ChatCitation) => void;
+}) {
   // dedupe by file_path + line range
   const unique = useMemo(() => {
     const seen = new Set<string>();
@@ -567,9 +619,10 @@ function CitationStrip({ cites }: { cites: ChatCitation[] }) {
   return (
     <div className="mt-2.5 flex flex-wrap gap-1.5">
       {unique.map((c, idx) => (
-        <Link
+        <button
           key={idx}
-          to={`/repositories/${c.repository_id}`}
+          type="button"
+          onClick={() => onOpen(c)}
           className="inline-flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
           title={`${c.file_path}:${c.start_line}-${c.end_line}`}
         >
@@ -577,7 +630,7 @@ function CitationStrip({ cites }: { cites: ChatCitation[] }) {
           <span>
             {c.file_path}:{c.start_line}-{c.end_line}
           </span>
-        </Link>
+        </button>
       ))}
     </div>
   );
