@@ -66,3 +66,6 @@ apps/api/alembic/versions/*.py.bak
 # ---- Dev artifacts / conversation dumps (may contain notes or partial secrets) ----
 AI_Coding_Agent_Compact.txt
 *_Compact.txt
+
+# ---- Personal interview-prep notes (keep local, not in the public repo) ----
+docs/INTERVIEW_TALKING_POINTS.md
