@@ -61,6 +61,34 @@ sequenceDiagram
   L-->>U: streamed answer + citations
 ```
 
+## Multi-agent pipeline
+
+Beyond the single tool-using chat agent, the **Agents** page runs a multi-agent
+pipeline over your code: a **planner** decomposes the task into sub-questions,
+**researcher** agents answer each one grounded in retrieved code, a
+**synthesizer** combines them, and a **critic** agent fact-checks the result
+against the findings — returning a verdict (`accurate` / `issues` / `uncertain`)
+with notes. Each stage is a guarded LLM call (a failure degrades to a partial
+result, not a crash) and reuses the same hybrid retrieval + LLM-provider
+abstraction as chat. See
+[`app/domain/agents/service.py`](apps/api/app/domain/agents/service.py).
+
+```mermaid
+flowchart TD
+  T["Task"] --> P["Planner<br/>split into sub-questions"]
+  P --> R1["Researcher 1"]
+  P --> R2["Researcher 2"]
+  P --> R3["Researcher 3"]
+  R1 --> S["Synthesizer<br/>combine findings"]
+  R2 --> S
+  R3 --> S
+  S --> C["Critic<br/>fact-check vs. code findings"]
+  C --> A["Final answer + verdict<br/>(accurate / issues / uncertain)"]
+  R1 -. hybrid search .-> QD[("Qdrant + Postgres")]
+  R2 -.-> QD
+  R3 -.-> QD
+```
+
 ## Features
 
 | Phase | Capability | Status |
