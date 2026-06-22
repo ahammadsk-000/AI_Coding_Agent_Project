@@ -9,6 +9,58 @@ against them.
 > fine-grained RBAC, SSO/SCIM, billing, plugin marketplace) is planned.
 > See [docs/PHASES.md](docs/PHASES.md) for the full roadmap.
 
+## Live demo
+
+- **App:** https://ai-coding-agent-project.vercel.app
+- **API docs:** https://ai-coding-agent-api-djyt.onrender.com/docs
+
+> Create an account to try it. The backend runs on a free tier and **sleeps after
+> ~15 min idle**, so the first request can take 30–60s to wake. On the hosted
+> deployment the sandbox is disabled (managed PaaS has no Docker socket) and
+> chat/embeddings use hosted providers — details in [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+  subgraph Client
+    UI["React SPA · Vercel"]
+  end
+  subgraph Backend["FastAPI · Render"]
+    API["API + WebSocket"]
+    ING["Ingestion (worker / inline)"]
+  end
+  UI -->|"HTTPS · WS"| API
+  API --> PG[("Postgres · Neon")]
+  API --> QD[("Qdrant Cloud")]
+  API --> RD[("Redis · Upstash")]
+  API -->|chat| LLM["LLM · Groq / OpenAI / Ollama"]
+  API -->|embed| EMB["Embeddings · Jina / OpenAI / local"]
+  ING --> GIT["git clone → tree-sitter → chunk"]
+  ING --> QD
+  ING --> PG
+```
+
+A chat turn (RAG + agentic tool loop):
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant API as FastAPI
+  participant S as Hybrid Search
+  participant L as LLM
+  U->>API: question (WebSocket)
+  API->>S: embed → dense (Qdrant) + BM25 (Postgres) → RRF
+  S-->>API: top code chunks
+  API->>L: prompt + retrieved code + tool definitions
+  loop agent loop (≤ 5 rounds)
+    L-->>API: tool_call (search_code / read_file / list_files)
+    API->>S: run tool
+    S-->>API: result
+  end
+  L-->>U: streamed answer + citations
+```
+
 ## Features
 
 | Phase | Capability | Status |

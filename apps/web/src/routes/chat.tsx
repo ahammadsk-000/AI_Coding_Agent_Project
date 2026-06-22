@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,10 +31,17 @@ import {
 import { useAuthStore } from "@/stores/auth-store";
 import { cn, initials } from "@/lib/utils";
 
+// Models for new conversations (Groq, via the OpenAI-compatible provider).
+const MODELS = [
+  { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B · quality" },
+  { id: "llama-3.1-8b-instant", label: "Llama 3.1 8B · fast" },
+];
+
 export function ChatPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [model, setModel] = useState(MODELS[0]!.id);
 
   const { data: conversations } = useQuery({
     queryKey: ["conversations"],
@@ -41,7 +50,7 @@ export function ChatPage() {
   });
 
   const createConv = useMutation({
-    mutationFn: () => api.createConversation({}),
+    mutationFn: () => api.createConversation({ llm_model: model }),
     onSuccess: (c) => {
       qc.invalidateQueries({ queryKey: ["conversations"] });
       navigate(`/chat/${c.id}`);
@@ -59,15 +68,29 @@ export function ChatPage() {
   return (
     <div className="grid h-[calc(100vh-3rem)] grid-cols-[18rem_1fr] gap-4">
       <aside className="flex flex-col overflow-hidden rounded-xl border border-border bg-card/40 backdrop-blur">
-        <div className="flex items-center justify-between border-b border-border p-3">
-          <span className="text-sm font-semibold">Conversations</span>
-          <Button
-            size="sm"
-            onClick={() => createConv.mutate()}
-            className="bg-gradient-to-r from-sky-500 to-indigo-500"
+        <div className="space-y-2 border-b border-border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">Conversations</span>
+            <Button
+              size="sm"
+              onClick={() => createConv.mutate()}
+              className="bg-gradient-to-r from-sky-500 to-indigo-500"
+            >
+              <Plus className="mr-1 h-4 w-4" /> New
+            </Button>
+          </div>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            title="Model for new conversations"
+            className="w-full rounded-md border border-border bg-card/60 px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            <Plus className="mr-1 h-4 w-4" /> New
-          </Button>
+            {MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex-1 space-y-1 overflow-auto p-2">
           {(conversations ?? []).length === 0 ? (
@@ -475,7 +498,7 @@ function MessageBubble({
       <Avatar isUser={isUser} userInitials={userInitials} />
       <div
         className={cn(
-          "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm",
+          "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm",
           isUser
             ? "bg-gradient-to-br from-sky-500/20 to-indigo-500/20 text-foreground"
             : "border border-border bg-card/60",
@@ -501,7 +524,7 @@ function StreamingBubble({ state }: { state: StreamingState }) {
   return (
     <div className="flex flex-row gap-2.5">
       <Avatar isUser={false} userInitials="" />
-      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl border border-border bg-card/60 px-3.5 py-2.5 text-sm">
+      <div className="max-w-[85%] rounded-2xl border border-border bg-card/60 px-3.5 py-2.5 text-sm">
         {state.buffer ? <MessageBody content={state.buffer} /> : <TypingDots />}
         {state.toolEvents.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -560,45 +583,46 @@ function CitationStrip({ cites }: { cites: ChatCitation[] }) {
   );
 }
 
-// Markdown-lite renderer: extract fenced ```lang code blocks and pass them
-// through SyntaxHighlighter; everything else as plain text.
-const CODE_FENCE_RE = /```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g;
+// Full markdown rendering (headings, lists, tables via remark-gfm). Fenced code
+// blocks are routed through our syntax-highlighted CodeBlock; inline code is
+// styled lightly. The `prose` classes come from @tailwindcss/typography.
+const MARKDOWN_COMPONENTS: Components = {
+  code({ className, children }) {
+    const match = /language-(\w+)/.exec(className || "");
+    const text = String(children ?? "").replace(/\n$/, "");
+    if (match || text.includes("\n")) {
+      return <CodeBlock lang={match?.[1] ?? "plaintext"} text={text} />;
+    }
+    return (
+      <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[0.85em]">
+        {children}
+      </code>
+    );
+  },
+  // CodeBlock supplies its own wrapper; drop react-markdown's default <pre>.
+  pre({ children }) {
+    return <>{children}</>;
+  },
+  a({ children, href }) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="text-primary hover:underline"
+      >
+        {children}
+      </a>
+    );
+  },
+};
 
 function MessageBody({ content }: { content: string }) {
-  const parts = useMemo(() => {
-    const result: Array<
-      | { kind: "text"; text: string }
-      | { kind: "code"; lang: string; text: string }
-    > = [];
-    let lastIndex = 0;
-    for (const match of content.matchAll(CODE_FENCE_RE)) {
-      const [full = "", lang = "", code = ""] = match;
-      const start = match.index ?? 0;
-      if (start > lastIndex) {
-        result.push({ kind: "text", text: content.slice(lastIndex, start) });
-      }
-      result.push({ kind: "code", lang: lang || "plaintext", text: code });
-      lastIndex = start + full.length;
-    }
-    if (lastIndex < content.length) {
-      result.push({ kind: "text", text: content.slice(lastIndex) });
-    }
-    return result;
-  }, [content]);
-
-  const only = parts[0];
-  if (parts.length === 1 && only && only.kind === "text") {
-    return <>{only.text}</>;
-  }
   return (
-    <div className="space-y-2">
-      {parts.map((p, idx) =>
-        p.kind === "text" ? (
-          <span key={idx}>{p.text}</span>
-        ) : (
-          <CodeBlock key={idx} lang={p.lang} text={p.text} />
-        ),
-      )}
+    <div className="prose prose-invert prose-sm max-w-none break-words prose-p:my-1.5 prose-headings:mb-1.5 prose-headings:mt-3 prose-ul:my-1.5 prose-ol:my-1.5 prose-pre:my-2 prose-pre:bg-transparent prose-pre:p-0">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
