@@ -7,6 +7,7 @@ import { RepositoriesPage } from "@/routes/repositories";
 import { RepositoryDetailPage } from "@/routes/repository-detail";
 import { SearchPage } from "@/routes/search";
 import { ChatPage } from "@/routes/chat";
+import { AgentsPage } from "@/routes/agents";
 import { MemoryPage } from "@/routes/memory";
 import { SandboxPage } from "@/routes/sandbox";
 import { GitHubPage } from "@/routes/github";
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:id" element={<ChatPage />} />
+        <Route path="/agents" element={<AgentsPage />} />
         <Route path="/memory" element={<MemoryPage />} />
         {SANDBOX_ENABLED ? (
           <Route path="/sandbox" element={<SandboxPage />} />

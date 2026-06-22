@@ -309,6 +309,21 @@ export interface Memory {
   updated_at: string;
 }
 
+export interface AgentStep {
+  title: string;
+  finding: string;
+  citations: ChatCitation[];
+  error: string | null;
+}
+
+export interface AgentRunResponse {
+  task: string;
+  plan: string[];
+  steps: AgentStep[];
+  synthesis: string;
+  model: string;
+}
+
 export const api = {
   // ---- auth ----
   register: (email: string, password: string, full_name?: string) =>
@@ -514,6 +529,15 @@ export const api = {
       "/api/v1/github/review",
       { method: "POST", body },
     ),
+
+  // ---- multi-agent pipeline ----
+  runAgents: (body: {
+    task: string;
+    repository_ids?: string[];
+    max_steps?: number;
+    model?: string;
+  }) =>
+    apiRequest<AgentRunResponse>("/api/v1/agents/run", { method: "POST", body }),
 };
 
 export type SandboxEvent =

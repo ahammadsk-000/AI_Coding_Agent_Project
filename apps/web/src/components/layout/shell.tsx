@@ -10,6 +10,7 @@ import {
   Github,
   Settings,
   Sparkles,
+  Workflow,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ export function AppShell() {
           <NavItem to="/repositories" icon={<GitBranch className="h-4 w-4" />} label="Repositories" />
           <NavItem to="/search" icon={<Search className="h-4 w-4" />} label="Search" />
           <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4" />} label="Chat" />
+          <NavItem to="/agents" icon={<Workflow className="h-4 w-4" />} label="Agents" />
           <NavItem to="/memory" icon={<Brain className="h-4 w-4" />} label="Memory" />
           {SANDBOX_ENABLED ? (
             <NavItem to="/sandbox" icon={<Terminal className="h-4 w-4" />} label="Sandbox" />
