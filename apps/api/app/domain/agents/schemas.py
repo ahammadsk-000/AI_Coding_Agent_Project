@@ -12,6 +12,8 @@ class AgentRunRequest(BaseModel):
     repository_ids: list[UUID] = Field(default_factory=list)
     max_steps: int = Field(default=3, ge=1, le=4)
     model: str | None = None
+    # Run a reviewer/critic agent that fact-checks the synthesis (one extra LLM call).
+    review: bool = True
 
 
 class AgentStep(BaseModel):
@@ -21,9 +23,15 @@ class AgentStep(BaseModel):
     error: str | None = None
 
 
+class AgentReview(BaseModel):
+    verdict: str  # "accurate" | "issues" | "uncertain"
+    notes: str
+
+
 class AgentRunResponse(BaseModel):
     task: str
     plan: list[str]
     steps: list[AgentStep]
     synthesis: str
+    review: AgentReview | None = None
     model: str

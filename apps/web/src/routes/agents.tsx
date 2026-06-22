@@ -1,6 +1,13 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Workflow, Compass, Search as SearchIcon, Sparkles, Play } from "lucide-react";
+import {
+  Workflow,
+  Compass,
+  Search as SearchIcon,
+  Sparkles,
+  Play,
+  ShieldCheck,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -20,11 +27,12 @@ export function AgentsPage() {
   const [task, setTask] = useState("");
   const [model, setModel] = useState(MODELS[0]!.id);
   const [scope, setScope] = useState<string[]>([]);
+  const [review, setReview] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const run = useMutation({
     mutationFn: () =>
-      api.runAgents({ task, repository_ids: scope, model, max_steps: 3 }),
+      api.runAgents({ task, repository_ids: scope, model, max_steps: 3, review }),
     onError: (e: unknown) =>
       setError(e instanceof ApiError ? e.message : "Agent run failed"),
     onSuccess: () => setError(null),
@@ -81,6 +89,15 @@ export function AgentsPage() {
               </option>
             ))}
           </select>
+          <label className="flex cursor-pointer items-center gap-1.5 text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={review}
+              onChange={(e) => setReview(e.target.checked)}
+              className="accent-violet-500"
+            />
+            <span>fact-check the answer (critic)</span>
+          </label>
           {ready.length ? (
             <div className="flex flex-wrap gap-1.5">
               {ready.map((r) => (
@@ -175,8 +192,41 @@ function AgentResult({ result }: { result: AgentRunResponse }) {
       >
         <Markdown content={result.synthesis} />
       </Stage>
+
+      {result.review ? (
+        <Stage
+          icon={<ShieldCheck className="h-4 w-4" />}
+          title="Critic"
+          subtitle="fact-checked against the code findings"
+          grad="from-amber-400 to-orange-500"
+        >
+          <div className="mb-2">
+            <VerdictBadge verdict={result.review.verdict} />
+          </div>
+          <Markdown content={result.review.notes} />
+        </Stage>
+      ) : null}
+
       <div className="text-xs text-muted-foreground">model: {result.model}</div>
     </div>
+  );
+}
+
+function VerdictBadge({ verdict }: { verdict: string }) {
+  const map: Record<string, string> = {
+    accurate: "bg-emerald-500/15 text-emerald-400",
+    issues: "bg-destructive/15 text-destructive",
+    uncertain: "bg-amber-500/15 text-amber-500",
+  };
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+        map[verdict] ?? "bg-muted text-muted-foreground",
+      )}
+    >
+      {verdict}
+    </span>
   );
 }
 

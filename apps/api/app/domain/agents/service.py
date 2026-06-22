@@ -20,7 +20,12 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.domain.agents.schemas import AgentRunRequest, AgentRunResponse, AgentStep
+from app.domain.agents.schemas import (
+    AgentReview,
+    AgentRunRequest,
+    AgentRunResponse,
+    AgentStep,
+)
 from app.domain.search.context import pack_context
 from app.domain.search.service import SearchService
 from app.domain.users.models import User
@@ -47,6 +52,16 @@ _SYNTH_SYS = (
     "bullet points). Be accurate and concise; don't just repeat the findings."
 )
 
+_REVIEW_SYS = (
+    "You are a critic agent. Fact-check the proposed answer ONLY against the "
+    "research findings (which are grounded in the actual code). Start your reply "
+    "with exactly one line — 'VERDICT: accurate' (well-supported by the "
+    "findings), 'VERDICT: issues' (contains unsupported claims or inaccuracies), "
+    "or 'VERDICT: uncertain'. Then give a short bulleted list of specific notes: "
+    "any claim not supported by the findings, any inaccuracy, or any overreach. "
+    "If it is solid, write 'No issues found.'"
+)
+
 
 class AgentOrchestrator:
     def __init__(self, session: AsyncSession) -> None:
@@ -60,11 +75,17 @@ class AgentOrchestrator:
         for sub in plan:
             steps.append(await self._research(provider, owner, sub, req.repository_ids))
         synthesis = await self._synthesize(provider, req.task, steps)
+        review = (
+            await self._review(provider, req.task, steps, synthesis)
+            if req.review
+            else None
+        )
         return AgentRunResponse(
             task=req.task,
             plan=plan,
             steps=steps,
             synthesis=synthesis,
+            review=review,
             model=provider.model,
         )
 
@@ -151,6 +172,40 @@ class AgentOrchestrator:
             return resp.content.strip()
         except Exception as e:  # noqa: BLE001
             return f"(synthesis failed: {type(e).__name__}: {e})"
+
+    async def _review(
+        self, provider: Any, task: str, steps: list[AgentStep], synthesis: str
+    ) -> AgentReview | None:
+        findings = "\n\n".join(
+            f"### {s.title}\n{s.finding}" for s in steps if s.finding.strip()
+        )
+        if not findings or not synthesis.strip():
+            return None
+        msgs = [
+            ChatMessage(role="system", content=_REVIEW_SYS),
+            ChatMessage(
+                role="user",
+                content=(
+                    f"Original task: {task}\n\n"
+                    f"Research findings (ground truth from code):\n{findings}\n\n"
+                    f"Proposed answer to fact-check:\n{synthesis}"
+                ),
+            ),
+        ]
+        try:
+            resp = await provider.chat(msgs, temperature=0.1, max_tokens=400)
+            text = resp.content.strip()
+            verdict = "uncertain"
+            m = re.search(r"verdict:\s*(accurate|issues|uncertain)", text, re.IGNORECASE)
+            if m:
+                verdict = m.group(1).lower()
+            notes_lines = [
+                ln for ln in text.splitlines() if not re.match(r"\s*verdict:", ln, re.IGNORECASE)
+            ]
+            notes = "\n".join(notes_lines).strip() or text
+            return AgentReview(verdict=verdict, notes=notes)
+        except Exception as e:  # noqa: BLE001
+            return AgentReview(verdict="uncertain", notes=f"(review failed: {type(e).__name__}: {e})")
 
     @staticmethod
     def _parse_list(text: str, max_n: int, fallback: str) -> list[str]:

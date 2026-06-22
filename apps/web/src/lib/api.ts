@@ -316,11 +316,17 @@ export interface AgentStep {
   error: string | null;
 }
 
+export interface AgentReview {
+  verdict: string;
+  notes: string;
+}
+
 export interface AgentRunResponse {
   task: string;
   plan: string[];
   steps: AgentStep[];
   synthesis: string;
+  review: AgentReview | null;
   model: string;
 }
 
@@ -536,6 +542,7 @@ export const api = {
     repository_ids?: string[];
     max_steps?: number;
     model?: string;
+    review?: boolean;
   }) =>
     apiRequest<AgentRunResponse>("/api/v1/agents/run", { method: "POST", body }),
 };
