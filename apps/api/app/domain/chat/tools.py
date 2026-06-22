@@ -45,7 +45,12 @@ TOOL_DEFS: list[ToolDef] = [
                     "description": "Natural-language or keyword query.",
                 },
                 "k": {
-                    "type": "integer",
+                    # Accept integer OR string: some models (e.g. Llama via Groq)
+                    # emit numeric tool args as strings, and Groq strictly
+                    # validates tool calls against this schema. The handler
+                    # coerces to int. A single "integer" type would make Groq
+                    # reject the whole completion when the model sends "5".
+                    "type": ["integer", "string"],
                     "description": "Number of results to return (default 5, max 20).",
                     "default": 5,
                 },
@@ -188,7 +193,10 @@ async def _handle_search_code(
     query = str(args.get("query", "")).strip()
     if not query:
         return {"error": "query is required"}, "search failed: empty query", []
-    k = int(args.get("k", 5) or 5)
+    try:
+        k = int(args.get("k", 5) or 5)
+    except (TypeError, ValueError):
+        k = 5
     k = max(1, min(k, 20))
 
     raw_ids = args.get("repository_ids") or []
