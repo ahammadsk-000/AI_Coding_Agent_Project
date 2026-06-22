@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Plus, Send, Trash2, Wrench, Quote, Square, Copy, Check, Pencil } from "lucide-react";
+import {
+  Plus,
+  Send,
+  Trash2,
+  Wrench,
+  Quote,
+  Square,
+  Copy,
+  Check,
+  Pencil,
+  Sparkles,
+  MessageSquare,
+} from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -15,6 +27,7 @@ import {
   type WsEvent,
 } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { cn, initials } from "@/lib/utils";
 
 export function ChatPage() {
   const { id } = useParams<{ id?: string }>();
@@ -44,17 +57,21 @@ export function ChatPage() {
   });
 
   return (
-    <div className="grid grid-cols-[18rem_1fr] gap-4 h-[calc(100vh-3rem)]">
-      <aside className="border border-border rounded-lg bg-card/40 flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between p-3 border-b border-border">
-          <span className="text-sm font-medium">Conversations</span>
-          <Button size="sm" variant="outline" onClick={() => createConv.mutate()}>
-            <Plus className="h-4 w-4 mr-1" /> New
+    <div className="grid h-[calc(100vh-3rem)] grid-cols-[18rem_1fr] gap-4">
+      <aside className="flex flex-col overflow-hidden rounded-xl border border-border bg-card/40 backdrop-blur">
+        <div className="flex items-center justify-between border-b border-border p-3">
+          <span className="text-sm font-semibold">Conversations</span>
+          <Button
+            size="sm"
+            onClick={() => createConv.mutate()}
+            className="bg-gradient-to-r from-sky-500 to-indigo-500"
+          >
+            <Plus className="mr-1 h-4 w-4" /> New
           </Button>
         </div>
-        <div className="flex-1 overflow-auto p-2 space-y-1">
+        <div className="flex-1 space-y-1 overflow-auto p-2">
           {(conversations ?? []).length === 0 ? (
-            <div className="text-xs text-muted-foreground p-3">
+            <div className="p-3 text-xs text-muted-foreground">
               No chats yet — click "New" to start one.
             </div>
           ) : (
@@ -70,7 +87,7 @@ export function ChatPage() {
         </div>
       </aside>
 
-      <section className="flex flex-col min-w-0">
+      <section className="flex min-w-0 flex-col">
         {id ? (
           <ChatThread conversationId={id} />
         ) : (
@@ -92,21 +109,24 @@ function ConvItem({
 }) {
   return (
     <div
-      className={
-        "rounded-md group flex items-center gap-2 px-2 py-1.5 text-sm " +
-        (active
-          ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground")
-      }
+      className={cn(
+        "group relative flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors",
+        active
+          ? "bg-primary/10 text-foreground"
+          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+      )}
     >
-      <Link to={`/chat/${conv.id}`} className="flex-1 min-w-0">
-        <div className="truncate">{conv.title}</div>
+      {active ? (
+        <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-gradient-to-b from-sky-400 to-indigo-500" />
+      ) : null}
+      <Link to={`/chat/${conv.id}`} className="min-w-0 flex-1">
+        <div className="truncate font-medium">{conv.title}</div>
         {conv.last_message_preview ? (
           <div className="truncate text-xs text-muted-foreground">
             {conv.last_message_preview}
           </div>
         ) : (
-          <div className="text-xs text-muted-foreground">
+          <div className="truncate text-xs text-muted-foreground">
             {conv.llm_provider} · {conv.llm_model}
           </div>
         )}
@@ -116,7 +136,7 @@ function ConvItem({
           e.preventDefault();
           if (confirm(`Delete "${conv.title}"?`)) onDelete();
         }}
-        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+        className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
         title="Delete"
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -127,16 +147,36 @@ function ConvItem({
 
 function EmptyChat({ onNew }: { onNew: () => void }) {
   return (
-    <div className="flex-1 flex items-center justify-center text-center">
-      <div className="space-y-3 max-w-md">
+    <div className="flex flex-1 items-center justify-center text-center">
+      <div className="max-w-md space-y-4">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-500 shadow-lg shadow-sky-500/20">
+          <MessageSquare className="h-7 w-7 text-white" />
+        </div>
         <h2 className="text-xl font-semibold">Chat with your code</h2>
         <p className="text-sm text-muted-foreground">
-          Ask questions about any of your ingested repositories. The agent will
-          retrieve relevant code, optionally call read-only tools, and stream
-          its answer with citations.
+          Ask questions about any of your ingested repositories. The agent
+          retrieves relevant code, calls read-only tools, and streams its answer
+          with citations.
         </p>
-        <Button onClick={onNew}>
-          <Plus className="h-4 w-4 mr-1" /> Start a new chat
+        <div className="flex flex-wrap justify-center gap-2">
+          {[
+            "What does this repository do?",
+            "Summarize the main files",
+            "Explain the entry point",
+          ].map((q) => (
+            <span
+              key={q}
+              className="rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-muted-foreground"
+            >
+              {q}
+            </span>
+          ))}
+        </div>
+        <Button
+          onClick={onNew}
+          className="bg-gradient-to-r from-sky-500 to-indigo-500"
+        >
+          <Plus className="mr-1 h-4 w-4" /> Start a new chat
         </Button>
       </div>
     </div>
@@ -160,6 +200,9 @@ function ChatThread({ conversationId }: { conversationId: string }) {
     queryKey: ["conversation", conversationId],
     queryFn: () => api.getConversation(conversationId),
   });
+
+  const user = useAuthStore((s) => s.user);
+  const userInitials = initials(user?.full_name || user?.email || "?");
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<StreamingState | null>(null);
@@ -269,7 +312,7 @@ function ChatThread({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <div className="flex flex-col min-h-0 h-full">
+    <div className="flex h-full min-h-0 flex-col">
       <ChatHeader
         conversationId={conversationId}
         title={data.conversation.title}
@@ -277,29 +320,27 @@ function ChatThread({ conversationId }: { conversationId: string }) {
         model={data.conversation.llm_model}
       />
 
-      <div className="flex-1 overflow-auto py-4 space-y-4">
+      <div className="flex-1 space-y-5 overflow-auto py-5">
         {data.messages
           .filter((m) => m.role !== "system" && m.role !== "tool")
           .map((m) => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble key={m.id} message={m} userInitials={userInitials} />
           ))}
         {streaming ? <StreamingBubble state={streaming} /> : null}
-        {error ? (
-          <div className="text-xs text-destructive">{error}</div>
-        ) : null}
+        {error ? <div className="text-xs text-destructive">{error}</div> : null}
         <div ref={bottomRef} />
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="border-t border-border pt-3 flex gap-2 items-end"
+        className="flex items-end gap-2 border-t border-border pt-3"
       >
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           rows={2}
           placeholder="Ask about your code — try 'What does index.html do?'"
-          className="flex-1 resize-none rounded-md bg-card border border-border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          className="flex-1 resize-none rounded-xl border border-border bg-card/60 px-3.5 py-2.5 text-sm backdrop-blur focus:outline-none focus:ring-2 focus:ring-ring"
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -310,12 +351,16 @@ function ChatThread({ conversationId }: { conversationId: string }) {
         />
         {streaming ? (
           <Button type="button" variant="outline" onClick={stopGeneration}>
-            <Square className="h-4 w-4 mr-1" />
+            <Square className="mr-1 h-4 w-4" />
             Stop
           </Button>
         ) : (
-          <Button type="submit" disabled={!input.trim()}>
-            <Send className="h-4 w-4 mr-1" />
+          <Button
+            type="submit"
+            disabled={!input.trim()}
+            className="bg-gradient-to-r from-sky-500 to-indigo-500"
+          >
+            <Send className="mr-1 h-4 w-4" />
             Send
           </Button>
         )}
@@ -355,7 +400,7 @@ function ChatHeader({
   }
 
   return (
-    <header className="px-1 pb-3 border-b border-border">
+    <header className="border-b border-border px-1 pb-3">
       {editing ? (
         <input
           autoFocus
@@ -369,55 +414,80 @@ function ChatHeader({
               setEditing(false);
             }
           }}
-          className="text-sm font-semibold bg-card border border-border rounded px-2 py-1 w-full max-w-md focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full max-w-md rounded-md border border-border bg-card px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
         />
       ) : (
-        <div className="flex items-center gap-2 group">
-          <span className="text-sm font-semibold truncate">{title}</span>
+        <div className="group flex items-center gap-2">
+          <span className="truncate text-base font-semibold">{title}</span>
           <button
             onClick={() => {
               setDraft(title);
               setEditing(true);
             }}
-            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
             title="Rename"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
-      <div className="text-xs text-muted-foreground">
+      <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-2 py-0.5 text-xs text-muted-foreground">
+        <Sparkles className="h-3 w-3 text-primary" />
         {provider} · {model}
       </div>
     </header>
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function Avatar({ isUser, userInitials }: { isUser: boolean; userInitials: string }) {
+  if (isUser) {
+    return (
+      <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 text-[10px] font-semibold text-white">
+        {userInitials}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500">
+      <Sparkles className="h-3.5 w-3.5 text-white" />
+    </div>
+  );
+}
+
+function ToolChip({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-xs text-muted-foreground">
+      <Wrench className="h-3 w-3" /> {label}
+    </span>
+  );
+}
+
+function MessageBubble({
+  message,
+  userInitials,
+}: {
+  message: ChatMessage;
+  userInitials: string;
+}) {
   const isUser = message.role === "user";
   return (
-    <div className={"flex " + (isUser ? "justify-end" : "justify-start")}>
+    <div className={cn("flex gap-2.5", isUser ? "flex-row-reverse" : "flex-row")}>
+      <Avatar isUser={isUser} userInitials={userInitials} />
       <div
-        className={
-          "max-w-[88%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap " +
-          (isUser
-            ? "bg-primary/20 text-foreground"
-            : "bg-card border border-border")
-        }
+        className={cn(
+          "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm",
+          isUser
+            ? "bg-gradient-to-br from-sky-500/20 to-indigo-500/20 text-foreground"
+            : "border border-border bg-card/60",
+        )}
       >
         <MessageBody content={message.content} />
         {message.tool_calls?.length ? (
-          <div className="mt-2 space-y-1">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {message.tool_calls.map((tc, idx) => {
-              const name = (tc as { function?: { name?: string } }).function?.name ?? "tool";
-              return (
-                <div
-                  key={idx}
-                  className="text-xs text-muted-foreground flex items-center gap-1"
-                >
-                  <Wrench className="h-3 w-3" /> called <code>{name}</code>
-                </div>
-              );
+              const name =
+                (tc as { function?: { name?: string } }).function?.name ?? "tool";
+              return <ToolChip key={idx} label={name} />;
             })}
           </div>
         ) : null}
@@ -429,27 +499,33 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
 function StreamingBubble({ state }: { state: StreamingState }) {
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[88%] rounded-lg px-3 py-2 text-sm bg-card border border-border whitespace-pre-wrap">
-        <MessageBody content={state.buffer || "…"} />
+    <div className="flex flex-row gap-2.5">
+      <Avatar isUser={false} userInitials="" />
+      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl border border-border bg-card/60 px-3.5 py-2.5 text-sm">
+        {state.buffer ? <MessageBody content={state.buffer} /> : <TypingDots />}
         {state.toolEvents.length > 0 ? (
-          <div className="mt-2 space-y-0.5">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {state.toolEvents.map((ev, idx) => (
-              <div
+              <ToolChip
                 key={idx}
-                className="text-xs text-muted-foreground flex items-center gap-1"
-              >
-                <Wrench className="h-3 w-3" />
-                {ev.kind === "start"
-                  ? `calling ${ev.name}…`
-                  : ev.summary}
-              </div>
+                label={ev.kind === "start" ? `calling ${ev.name}…` : ev.summary}
+              />
             ))}
           </div>
         ) : null}
         {state.citations.length ? <CitationStrip cites={state.citations} /> : null}
       </div>
     </div>
+  );
+}
+
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1 py-1">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" />
+    </span>
   );
 }
 
@@ -466,16 +542,16 @@ function CitationStrip({ cites }: { cites: ChatCitation[] }) {
   }, [cites]);
   if (!unique.length) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-1">
+    <div className="mt-2.5 flex flex-wrap gap-1.5">
       {unique.map((c, idx) => (
         <Link
           key={idx}
           to={`/repositories/${c.repository_id}`}
-          className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
           title={`${c.file_path}:${c.start_line}-${c.end_line}`}
         >
-          <Quote className="h-3 w-3" />
-          <span className="font-mono">
+          <Quote className="h-3 w-3 text-primary" />
+          <span>
             {c.file_path}:{c.start_line}-{c.end_line}
           </span>
         </Link>
@@ -541,14 +617,25 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
   }
 
   return (
-    <div className="relative group/code">
-      <button
-        onClick={copy}
-        className="absolute top-1 right-1 z-10 opacity-0 group-hover/code:opacity-100 rounded bg-black/40 hover:bg-black/60 p-1 text-xs text-muted-foreground"
-        title="Copy code"
-      >
-        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-      </button>
+    <div className="overflow-hidden rounded-lg border border-border">
+      <div className="flex items-center justify-between bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+        <span className="font-mono">{lang || "code"}</span>
+        <button
+          onClick={copy}
+          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+          title="Copy code"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3" /> copied
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" /> copy
+            </>
+          )}
+        </button>
+      </div>
       <SyntaxHighlighter
         language={lang}
         style={vscDarkPlus}
@@ -556,7 +643,6 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
         customStyle={{
           margin: 0,
           fontSize: "0.75rem",
-          borderRadius: "0.375rem",
           background: "rgb(30, 30, 30)",
         }}
         codeTagProps={{ style: { fontFamily: "ui-monospace, monospace" } }}
