@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GitBranch, X } from "lucide-react";
+import { ArrowLeft, GitBranch, GitCompare, X } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { api, type CodeChunkPreview, type IngestJob, type RepositoryFile } from "@/lib/api";
 import { InsightsSection } from "@/components/repo/insights-section";
+import { MetricsPanel } from "@/components/repo/metrics-panel";
 import { readSse } from "@/lib/sse";
 import { useReposStore } from "@/stores/repos-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -102,6 +103,8 @@ export function RepositoryDetailPage() {
           ))}
         </div>
       </section>
+
+      <MetricsPanel repoId={repoId} />
 
       <InsightsSection repoId={repoId} />
 
@@ -374,6 +377,7 @@ function ChunkPreview({
     queryKey: ["chunks", repoId, file.id],
     queryFn: () => api.listFileChunks(repoId, file.id),
   });
+  const [showSimilar, setShowSimilar] = useState(false);
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card/60 p-4 backdrop-blur">
@@ -392,6 +396,17 @@ function ChunkPreview({
         >
           <X className="h-4 w-4" />
         </button>
+      </div>
+
+      <div className="space-y-2">
+        <button
+          onClick={() => setShowSimilar((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <GitCompare className="h-3.5 w-3.5" />
+          {showSimilar ? "Hide similar code" : "Find similar code"}
+        </button>
+        {showSimilar ? <SimilarMatches repoId={repoId} fileId={file.id} /> : null}
       </div>
 
       {isLoading ? (
@@ -427,6 +442,50 @@ function ChunkPreview({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function SimilarMatches({ repoId, fileId }: { repoId: string; fileId: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["similar", repoId, fileId],
+    queryFn: () => api.repoSimilar(repoId, fileId),
+  });
+
+  if (isLoading)
+    return <div className="text-xs text-muted-foreground">Finding similar code…</div>;
+  if (isError)
+    return <div className="text-xs text-destructive">Could not search for similar code.</div>;
+
+  const matches = data?.matches ?? [];
+  if (matches.length === 0)
+    return (
+      <div className="text-xs text-muted-foreground">
+        No semantically similar code found elsewhere in this repo.
+      </div>
+    );
+
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs text-muted-foreground">
+        Nearest matches elsewhere in the repo (possible duplication / refactor candidates):
+      </div>
+      {matches.map((m, i) => (
+        <div
+          key={`${m.file_id}-${i}`}
+          className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card/40 px-2.5 py-1.5"
+        >
+          <span className="truncate font-mono text-xs" title={m.file_path}>
+            {m.file_path}
+            <span className="text-muted-foreground">
+              :{m.start_line}-{m.end_line}
+            </span>
+          </span>
+          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium tabular-nums text-primary">
+            {Math.round(m.score * 100)}% match
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

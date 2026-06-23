@@ -309,6 +309,26 @@ export interface Memory {
   updated_at: string;
 }
 
+export interface RepoMetrics {
+  total_files: number;
+  total_lines: number;
+  total_bytes: number;
+  languages: { language: string; files: number; lines: number }[];
+  largest_files: { path: string; lines: number; size_bytes: number }[];
+  test_files: number;
+  source_files: number;
+}
+
+export interface SimilarMatch {
+  file_id: string;
+  file_path: string;
+  language: string | null;
+  start_line: number;
+  end_line: number;
+  score: number;
+  content: string;
+}
+
 export interface AgentStep {
   title: string;
   finding: string;
@@ -537,6 +557,12 @@ export const api = {
     ),
 
   // ---- repo insights ----
+  repoMetrics: (id: string) =>
+    apiRequest<RepoMetrics>(`/api/v1/insights/${id}/metrics`),
+  repoSimilar: (id: string, fileId: string) =>
+    apiRequest<{ matches: SimilarMatch[] }>(
+      `/api/v1/insights/${id}/files/${fileId}/similar`,
+    ),
   repoDiagram: (id: string) =>
     apiRequest<{ mermaid: string }>(`/api/v1/insights/${id}/diagram`, { method: "POST" }),
   repoDocs: (id: string) =>

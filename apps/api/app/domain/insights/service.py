@@ -6,11 +6,17 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from typing import Any
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.domain.repositories.models import Repository, RepositoryFile
+from app.domain.repositories.repository import FileRepo
+from app.domain.search.service import SearchService
+from app.domain.users.models import User
 from app.infrastructure.llm import ChatMessage, get_llm_provider
 
 _DIAGRAM_SYS = (
@@ -93,6 +99,111 @@ class InsightsService:
         )
         paths = [row[0] for row in (await self.session.execute(stmt)).all()]
         return _build_codemap(paths, repo.name)
+
+    async def metrics(self, repo: Repository) -> dict[str, Any]:
+        """Repo analytics from the file inventory only — no LLM, always works."""
+        stmt = select(
+            RepositoryFile.path,
+            RepositoryFile.language,
+            RepositoryFile.lines,
+            RepositoryFile.size_bytes,
+        ).where(RepositoryFile.repository_id == repo.id)
+        rows = (await self.session.execute(stmt)).all()
+
+        total_files = len(rows)
+        total_lines = sum(r.lines for r in rows)
+        total_bytes = sum(r.size_bytes for r in rows)
+        by_lang: dict[str, dict[str, int]] = defaultdict(lambda: {"files": 0, "lines": 0})
+        test_files = 0
+        for r in rows:
+            lang = r.language or "other"
+            by_lang[lang]["files"] += 1
+            by_lang[lang]["lines"] += r.lines
+            if _is_test_path(r.path):
+                test_files += 1
+
+        languages = sorted(
+            (
+                {"language": k, "files": v["files"], "lines": v["lines"]}
+                for k, v in by_lang.items()
+            ),
+            key=lambda x: x["lines"],
+            reverse=True,
+        )
+        largest = sorted(
+            (
+                {"path": r.path, "lines": r.lines, "size_bytes": r.size_bytes}
+                for r in rows
+            ),
+            key=lambda x: x["lines"],
+            reverse=True,
+        )[:10]
+        return {
+            "total_files": total_files,
+            "total_lines": total_lines,
+            "total_bytes": total_bytes,
+            "languages": languages,
+            "largest_files": largest,
+            "test_files": test_files,
+            "source_files": total_files - test_files,
+        }
+
+    async def similar(
+        self, owner: User, repo: Repository, file_id: UUID, k: int = 6
+    ) -> list[dict[str, Any]]:
+        """Find code chunks elsewhere in the repo semantically similar to a file.
+
+        Uses the file's largest chunk as a vector query against Qdrant (reuses
+        the existing dense retrieval), then drops same-file hits. No LLM.
+        """
+        files = FileRepo(self.session)
+        target = await files.get_file(file_id)
+        if target is None or target.repository_id != repo.id:
+            raise NotFoundError("File not found in this repository")
+        chunks = await files.list_chunks_for_file(file_id)
+        if not chunks:
+            return []
+        rep = max(chunks, key=lambda c: c.token_count or 0)
+
+        hits, _r, _t = await SearchService(self.session).search(
+            owner,
+            query=rep.content,
+            repository_ids=[repo.id],
+            k=k + 6,
+            mode="dense",
+            rerank=False,
+        )
+        out: list[dict[str, Any]] = []
+        for h in hits:
+            if str(h.file_id) == str(file_id):
+                continue
+            out.append(
+                {
+                    "file_id": str(h.file_id),
+                    "file_path": h.file_path,
+                    "language": h.language,
+                    "start_line": h.start_line,
+                    "end_line": h.end_line,
+                    "score": round(float(h.score), 3),
+                    "content": h.content,
+                }
+            )
+            if len(out) >= k:
+                break
+        return out
+
+
+def _is_test_path(path: str) -> bool:
+    parts = path.lower().split("/")
+    if any(seg in {"test", "tests", "__tests__", "spec", "specs"} for seg in parts):
+        return True
+    name = parts[-1]
+    return (
+        name.startswith("test_")
+        or name.endswith(("_test.py", "_test.go", "_test.rb"))
+        or ".test." in name
+        or ".spec." in name
+    )
 
 
 def _extract_mermaid(text: str) -> str:
