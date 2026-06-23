@@ -115,6 +115,32 @@ TOOL_DEFS: list[ToolDef] = [
             "required": ["repository_name"],
         },
     ),
+    ToolDef(
+        name="web_search",
+        description=(
+            "Search the public web for up-to-date information BEYOND the user's "
+            "ingested repositories — e.g. library documentation, recent API "
+            "changes, best practices, or how the user's code compares to the "
+            "latest version of a framework. Returns a few results with title, "
+            "URL, and snippet. Use ONLY when the answer isn't in the user's code "
+            "and genuinely needs external or current knowledge."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "What to search the web for.",
+                },
+                "max_results": {
+                    "type": ["integer", "string"],
+                    "description": "How many results to return (default 5, max 8).",
+                    "default": 5,
+                },
+            },
+            "required": ["query"],
+        },
+    ),
 ]
 
 
@@ -367,12 +393,32 @@ async def _handle_list_files(
     )
 
 
+async def _handle_web_search(
+    user: User, args: dict[str, Any], session: AsyncSession
+) -> tuple[dict[str, Any], str, list[dict[str, Any]]]:
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return {"error": "query is required"}, "web_search failed: empty query", []
+    try:
+        n = int(args.get("max_results", 5) or 5)
+    except (TypeError, ValueError):
+        n = 5
+    n = max(1, min(n, 8))
+
+    from app.infrastructure.websearch import web_search
+
+    results = await web_search(query, n)
+    summary = f"web_search('{query[:60]}') → {len(results)} result(s)"
+    return {"results": results}, summary, []
+
+
 # ---------- dispatch ----------
 
 _HANDLERS = {
     "search_code": _handle_search_code,
     "read_file": _handle_read_file,
     "list_files": _handle_list_files,
+    "web_search": _handle_web_search,
 }
 
 

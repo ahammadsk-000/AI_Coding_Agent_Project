@@ -148,6 +148,41 @@ class InsightsService:
             "source_files": total_files - test_files,
         }
 
+    async def gen_tests(self, repo: Repository, file_id: UUID) -> dict[str, Any]:
+        """Generate a runnable unit-test file for a source file (LLM)."""
+        files = FileRepo(self.session)
+        file = await files.get_file(file_id)
+        if file is None or file.repository_id != repo.id:
+            raise NotFoundError("File not found in this repository")
+        chunks = await files.list_chunks_for_file(file_id)
+        content = "\n".join(
+            c.content for c in sorted(chunks, key=lambda c: c.start_line)
+        )[:12_000]
+        if not content.strip():
+            raise NotFoundError("File has no indexed content to test")
+
+        test_path = _test_path_for(file.path, file.language)
+        resp = await get_llm_provider().chat(
+            [
+                ChatMessage(role="system", content=_TESTS_SYS),
+                ChatMessage(
+                    role="user",
+                    content=(
+                        f"Source file: {file.path} (language: {file.language or 'unknown'})\n"
+                        f"Write the test file to be saved at: {test_path}\n\n"
+                        f"```\n{content}\n```"
+                    ),
+                ),
+            ],
+            temperature=0.2,
+            max_tokens=1200,
+        )
+        return {
+            "test_path": test_path,
+            "language": file.language,
+            "content": _extract_code(resp.content),
+        }
+
     async def similar(
         self, owner: User, repo: Repository, file_id: UUID, k: int = 6
     ) -> list[dict[str, Any]]:
@@ -204,6 +239,41 @@ def _is_test_path(path: str) -> bool:
         or ".test." in name
         or ".spec." in name
     )
+
+
+_TESTS_SYS = (
+    "You are a test engineer. Write thorough, runnable unit tests for the given "
+    "source file using the language's standard framework (pytest for Python, "
+    "Vitest/Jest for JS/TS, the testing package for Go, JUnit for Java, etc.). "
+    "Cover the main functions/classes, important edge cases, and error paths. "
+    "Import from the source module by a sensible relative path. Output ONLY the "
+    "test file content inside ONE fenced code block — no prose before or after."
+)
+
+
+def _extract_code(text: str) -> str:
+    m = re.search(r"```[a-zA-Z0-9_+.\-]*\n([\s\S]*?)```", text)
+    return (m.group(1) if m else text).strip()
+
+
+def _test_path_for(path: str, language: str | None) -> str:
+    import posixpath
+
+    d = posixpath.dirname(path)
+    base = posixpath.basename(path)
+    stem, _dot, ext = base.partition(".")
+    lang = (language or "").lower()
+    if lang == "python":
+        name = f"test_{base}"
+    elif lang in ("javascript", "typescript"):
+        name = f"{stem}.test.{ext}" if ext else f"{base}.test"
+    elif lang == "go":
+        name = f"{stem}_test.go"
+    elif lang == "java":
+        name = f"{stem}Test.{ext or 'java'}"
+    else:
+        name = f"{base}.test"
+    return posixpath.join(d, name) if d else name
 
 
 def _extract_mermaid(text: str) -> str:

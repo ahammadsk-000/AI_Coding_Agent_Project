@@ -107,7 +107,7 @@ export function PrModal({
   initial,
   onClose,
 }: {
-  initial: { code: string; lang: string };
+  initial: { code: string; lang: string; path?: string };
   onClose: () => void;
 }) {
   const { data: repos } = useQuery({ queryKey: ["repos"], queryFn: api.listRepos });
@@ -115,7 +115,7 @@ export function PrModal({
   const [owner, setOwner] = useState("");
   const [repo, setRepo] = useState("");
   const [branch, setBranch] = useState(`aca-edit-${Date.now().toString(36)}`);
-  const [path, setPath] = useState("");
+  const [path, setPath] = useState(initial.path ?? "");
   const [title, setTitle] = useState("Update from AI Coding Agent");
   const [content, setContent] = useState(initial.code);
   const [error, setError] = useState<string | null>(null);

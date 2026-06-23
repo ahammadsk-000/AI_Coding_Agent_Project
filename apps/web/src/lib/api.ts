@@ -329,6 +329,12 @@ export interface SimilarMatch {
   content: string;
 }
 
+export interface GeneratedTests {
+  test_path: string;
+  language: string | null;
+  content: string;
+}
+
 export interface AgentStep {
   title: string;
   finding: string;
@@ -562,6 +568,11 @@ export const api = {
   repoSimilar: (id: string, fileId: string) =>
     apiRequest<{ matches: SimilarMatch[] }>(
       `/api/v1/insights/${id}/files/${fileId}/similar`,
+    ),
+  repoGenTests: (id: string, fileId: string) =>
+    apiRequest<GeneratedTests>(
+      `/api/v1/insights/${id}/files/${fileId}/tests`,
+      { method: "POST" },
     ),
   repoDiagram: (id: string) =>
     apiRequest<{ mermaid: string }>(`/api/v1/insights/${id}/diagram`, { method: "POST" }),

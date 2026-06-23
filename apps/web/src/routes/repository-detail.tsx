@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GitBranch, GitCompare, X } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { ArrowLeft, GitBranch, GitCompare, FlaskConical, GitPullRequest, X } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-import { api, type CodeChunkPreview, type IngestJob, type RepositoryFile } from "@/lib/api";
+import { api, ApiError, type CodeChunkPreview, type IngestJob, type RepositoryFile } from "@/lib/api";
 import { InsightsSection } from "@/components/repo/insights-section";
 import { AuditSection } from "@/components/repo/audit-section";
 import { MetricsPanel } from "@/components/repo/metrics-panel";
+import { PrModal } from "@/components/chat/panels";
 import { readSse } from "@/lib/sse";
 import { useReposStore } from "@/stores/repos-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -410,6 +411,7 @@ function ChunkPreview({
           {showSimilar ? "Hide similar code" : "Find similar code"}
         </button>
         {showSimilar ? <SimilarMatches repoId={repoId} fileId={file.id} /> : null}
+        <TestGen repoId={repoId} file={file} />
       </div>
 
       {isLoading ? (
@@ -445,6 +447,65 @@ function ChunkPreview({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function TestGen({ repoId, file }: { repoId: string; file: RepositoryFile }) {
+  const [showPr, setShowPr] = useState(false);
+  const gen = useMutation({ mutationFn: () => api.repoGenTests(repoId, file.id) });
+  const data = gen.data;
+
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={() => gen.mutate()}
+        disabled={gen.isPending}
+        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+      >
+        <FlaskConical className="h-3.5 w-3.5" />
+        {gen.isPending ? "Generating tests…" : "Generate tests"}
+      </button>
+      {gen.isError ? (
+        <div className="text-xs text-destructive">
+          {gen.error instanceof ApiError ? gen.error.message : "Test generation failed."}
+        </div>
+      ) : null}
+      {data ? (
+        <div className="overflow-hidden rounded-lg border border-border">
+          <div className="flex items-center justify-between gap-2 bg-muted/30 px-2 py-1 text-xs">
+            <span className="truncate font-mono text-muted-foreground" title={data.test_path}>
+              {data.test_path}
+            </span>
+            <button
+              onClick={() => setShowPr(true)}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary/20"
+            >
+              <GitPullRequest className="h-3.5 w-3.5" /> Open as PR
+            </button>
+          </div>
+          <SyntaxHighlighter
+            language={prismLanguage(data.language ?? file.language)}
+            style={vscDarkPlus}
+            showLineNumbers
+            wrapLongLines
+            customStyle={{ margin: 0, fontSize: "0.75rem", background: "rgb(30, 30, 30)" }}
+            codeTagProps={{ style: { fontFamily: "ui-monospace, monospace" } }}
+          >
+            {data.content}
+          </SyntaxHighlighter>
+        </div>
+      ) : null}
+      {showPr && data ? (
+        <PrModal
+          initial={{
+            code: data.content,
+            lang: data.language ?? "plaintext",
+            path: data.test_path,
+          }}
+          onClose={() => setShowPr(false)}
+        />
+      ) : null}
     </div>
   );
 }

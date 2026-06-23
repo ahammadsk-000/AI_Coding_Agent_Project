@@ -59,3 +59,16 @@ async def repo_similar(
         raise
     except Exception as e:  # noqa: BLE001
         raise ConflictError(f"Similar search failed: {type(e).__name__}: {e}") from e
+
+
+@router.post("/{repo_id}/files/{file_id}/tests")
+async def repo_gen_tests(
+    repo_id: UUID, file_id: UUID, user: CurrentUser, db: DbSession
+) -> dict[str, Any]:
+    repo = await RepositoryService(db).get_mine(user, repo_id)
+    try:
+        return await InsightsService(db).gen_tests(repo, file_id)
+    except NotFoundError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise ConflictError(f"Test generation failed: {type(e).__name__}: {e}") from e
