@@ -61,6 +61,12 @@ log = get_logger("chat")
 
 _RAG_TOKEN_BUDGET = 1500
 _MAX_TOOL_ROUNDS = 5
+# Guardrails against a model that spams tool calls (e.g. calling web_search in a
+# loop) and blows the free-tier tokens-per-minute budget (Groq = 6000 TPM). Kept
+# small so a single tool-augmented request stays under that ceiling.
+_MAX_CALLS_PER_ROUND = 2       # execute at most N (deduped) calls per round
+_MAX_TOTAL_TOOL_CALLS = 3      # after this many across the turn, force a final answer
+_TOOL_RESULT_CHAR_CAP = 3000   # cap each tool result fed back to the LLM (~0.75k tokens)
 
 # Tools are powerful but require the LLM to reliably emit structured tool_calls
 # AND synthesize tool results back into a coherent answer. Small open-weights
@@ -220,6 +226,33 @@ def _looks_like_leaked_tool_call(text: str) -> bool:
         return False
     s = text.strip().lstrip("`").lstrip()
     return any(s.startswith(p) for p in _LEAK_STARTERS)
+
+
+def _is_rate_or_size_error(err: str) -> bool:
+    """True for provider rate-limit / request-too-large errors (no point retrying)."""
+    low = err.lower()
+    return any(
+        marker in low
+        for marker in (
+            "rate_limit",
+            "tokens per minute",
+            "tpm",
+            "request too large",
+            "413",
+            "429",
+            "too many requests",
+        )
+    )
+
+
+def _friendly_llm_error(err: str) -> str:
+    if _is_rate_or_size_error(err):
+        return (
+            "Hit the model's free-tier token limit (Groq rate limit). Try a "
+            "shorter question, scope to fewer repositories, switch to the 8B "
+            "model, or wait a minute and retry."
+        )
+    return f"LLM call failed: {err}"
 
 
 # Explicit "remember this" cues. When a user message starts with one of these,
@@ -443,6 +476,7 @@ class ChatService:
         )
 
         rounds = 0
+        total_tool_calls = 0
         accumulated_text = ""
         last_tool_calls: list[ToolCall] = []
         final_citations: list[dict[str, Any]] = list(rag_citations)
@@ -469,11 +503,11 @@ class ChatService:
                         last_tool_calls = chunk.tool_calls
             except Exception as exc:
                 err = f"{type(exc).__name__}: {exc}"
-                # Some providers (notably Groq) can fail constrained tool-call
-                # generation with a `tool_use_failed` error ("Failed to call a
-                # function"). Rather than killing the whole turn, retry this round
-                # ONCE without tools so the model just answers in prose.
-                if tools_for_round:
+                # A tool-call generation failure (e.g. Groq's `tool_use_failed`)
+                # is worth retrying WITHOUT tools so the model answers in prose.
+                # A rate-limit / request-too-large error is NOT — resending the
+                # same messages would just fail again; report it clearly instead.
+                if tools_for_round and not _is_rate_or_size_error(err):
                     log.warning(
                         "llm_tool_call_failed_retry_without_tools",
                         error=err,
@@ -502,7 +536,7 @@ class ChatService:
                         M.llm_requests_total.labels(
                             conv.llm_provider, conv.llm_model, "error"
                         ).inc()
-                        yield WsError(message=f"LLM call failed: {err2}")
+                        yield WsError(message=_friendly_llm_error(err2))
                         return
                 else:
                     log.error(
@@ -511,8 +545,25 @@ class ChatService:
                     M.llm_requests_total.labels(
                         conv.llm_provider, conv.llm_model, "error"
                     ).inc()
-                    yield WsError(message=f"LLM call failed: {err}")
+                    yield WsError(message=_friendly_llm_error(err))
                     return
+
+            # Dedupe identical tool calls and cap how many we execute this round,
+            # so a model that spams the same tool (e.g. web_search) can't run away
+            # or blow the token budget. Done BEFORE persisting so the assistant's
+            # recorded tool_calls match the tool results that follow.
+            if last_tool_calls:
+                deduped: list[ToolCall] = []
+                seen_sigs: set[str] = set()
+                for tc in last_tool_calls:
+                    sig = f"{tc.name}:{json.dumps(tc.arguments, sort_keys=True, default=str)}"
+                    if sig in seen_sigs:
+                        continue
+                    seen_sigs.add(sig)
+                    deduped.append(tc)
+                    if len(deduped) >= _MAX_CALLS_PER_ROUND:
+                        break
+                last_tool_calls = deduped
 
             # --- metrics: record tokens, latency, cost for this round ---
             completion_tokens = count_tokens(accumulated_text)
@@ -612,7 +663,7 @@ class ChatService:
                 tool_msg = Message(
                     conversation_id=conv.id,
                     role=MessageRole.tool,
-                    content=json.dumps(result)[:32_000],   # cap tool payload size
+                    content=json.dumps(result)[:_TOOL_RESULT_CHAR_CAP],  # bound prompt growth
                     tool_call_id=tc.id,
                 )
                 await self.msg_repo.add(tool_msg)
@@ -625,6 +676,11 @@ class ChatService:
                     )
                 )
             await self.session.commit()
+            total_tool_calls += len(last_tool_calls)
+            if total_tool_calls >= _MAX_TOTAL_TOOL_CALLS:
+                # Enough tool use for one turn — force the next round to answer in
+                # prose so a runaway model can't keep burning the token budget.
+                tools_for_round = []
             # Loop back for the next LLM round.
 
     # ---------- helpers ----------
