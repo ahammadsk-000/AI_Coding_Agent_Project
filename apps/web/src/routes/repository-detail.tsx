@@ -7,6 +7,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { api, type CodeChunkPreview, type IngestJob, type RepositoryFile } from "@/lib/api";
 import { InsightsSection } from "@/components/repo/insights-section";
+import { AuditSection } from "@/components/repo/audit-section";
 import { MetricsPanel } from "@/components/repo/metrics-panel";
 import { readSse } from "@/lib/sse";
 import { useReposStore } from "@/stores/repos-store";
@@ -107,6 +108,8 @@ export function RepositoryDetailPage() {
       <MetricsPanel repoId={repoId} />
 
       <InsightsSection repoId={repoId} />
+
+      <AuditSection repoId={repoId} />
 
       <FilesSection repoId={repoId} />
     </div>
