@@ -34,7 +34,9 @@ export async function* readSse(
   while (true) {
     const { done, value } = await reader.read();
     if (done) return;
-    buffer += decoder.decode(value, { stream: true });
+    // Normalize CRLF → LF so block (\n\n) and line (\n) parsing works whether the
+    // server emits "\n\n" or "\r\n\r\n" event separators.
+    buffer += decoder.decode(value, { stream: true }).replace(/\r/g, "");
 
     let sep: number;
     while ((sep = buffer.indexOf("\n\n")) !== -1) {

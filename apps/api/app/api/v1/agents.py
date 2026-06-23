@@ -32,16 +32,22 @@ async def run_agents(
 @router.get("/run/stream")
 async def run_agents_stream(
     user: CurrentUser,
-    db: DbSession,
     task: str,
     repository_ids: str = "",
     max_steps: int = 3,
     model: str | None = None,
     review: bool = True,
 ) -> EventSourceResponse:
-    """Stream the multi-agent pipeline; each stage is an SSE event."""
+    """Stream the multi-agent pipeline; each stage is an SSE event.
+
+    Opens its OWN DB session inside the generator — the request-scoped session
+    can be torn down before the streaming body runs, which would break the
+    pipeline's queries mid-stream.
+    """
 
     async def gen():
+        from app.infrastructure.db.session import session_factory
+
         try:
             repo_ids = [UUID(r) for r in repository_ids.split(",") if r.strip()]
             req = AgentRunRequest(
@@ -51,8 +57,9 @@ async def run_agents_stream(
                 model=model,
                 review=review,
             )
-            async for event, data in AgentOrchestrator(db).run_stream(user, req):
-                yield {"event": event, "data": json.dumps(data, default=str)}
+            async with session_factory() as session:
+                async for event, data in AgentOrchestrator(session).run_stream(user, req):
+                    yield {"event": event, "data": json.dumps(data, default=str)}
         except Exception as e:  # noqa: BLE001
             yield {
                 "event": "error",
