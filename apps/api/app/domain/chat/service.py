@@ -469,12 +469,50 @@ class ChatService:
                         last_tool_calls = chunk.tool_calls
             except Exception as exc:
                 err = f"{type(exc).__name__}: {exc}"
-                log.error("llm_stream_failed", error=err, provider=conv.llm_provider)
-                M.llm_requests_total.labels(
-                    conv.llm_provider, conv.llm_model, "error"
-                ).inc()
-                yield WsError(message=f"LLM call failed: {err}")
-                return
+                # Some providers (notably Groq) can fail constrained tool-call
+                # generation with a `tool_use_failed` error ("Failed to call a
+                # function"). Rather than killing the whole turn, retry this round
+                # ONCE without tools so the model just answers in prose.
+                if tools_for_round:
+                    log.warning(
+                        "llm_tool_call_failed_retry_without_tools",
+                        error=err,
+                        provider=conv.llm_provider,
+                        model=conv.llm_model,
+                    )
+                    tools_for_round = []
+                    accumulated_text = ""
+                    last_tool_calls = []
+                    try:
+                        async for chunk in provider_obj.stream(
+                            llm_messages,
+                            tools=None,
+                            temperature=0.2,
+                        ):
+                            if chunk.text_delta:
+                                accumulated_text += chunk.text_delta
+                                yield WsToken(delta=chunk.text_delta)
+                            if chunk.tool_calls:
+                                last_tool_calls = chunk.tool_calls
+                    except Exception as exc2:
+                        err2 = f"{type(exc2).__name__}: {exc2}"
+                        log.error(
+                            "llm_stream_failed", error=err2, provider=conv.llm_provider
+                        )
+                        M.llm_requests_total.labels(
+                            conv.llm_provider, conv.llm_model, "error"
+                        ).inc()
+                        yield WsError(message=f"LLM call failed: {err2}")
+                        return
+                else:
+                    log.error(
+                        "llm_stream_failed", error=err, provider=conv.llm_provider
+                    )
+                    M.llm_requests_total.labels(
+                        conv.llm_provider, conv.llm_model, "error"
+                    ).inc()
+                    yield WsError(message=f"LLM call failed: {err}")
+                    return
 
             # --- metrics: record tokens, latency, cost for this round ---
             completion_tokens = count_tokens(accumulated_text)
