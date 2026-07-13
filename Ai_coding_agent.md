@@ -22,15 +22,28 @@ against them with full Retrieval-Augmented Generation (RAG) and a hardened code 
 - **Search the code** — hybrid search (dense vector similarity + Postgres full-text),
   fused with Reciprocal Rank Fusion, optionally reranked with a cross-encoder.
 - **Chat with an agent** — a multi-turn LLM agent that retrieves context (RAG), calls
-  read-only tools (`search_code`, `read_file`, `list_files`), streams tokens over
-  WebSocket, and remembers durable facts.
+  read-only tools (`search_code`, `read_file`, `list_files`, `web_search`), streams tokens
+  over WebSocket, and remembers durable facts.
+- **Run a multi-agent pipeline** — a planner splits a task into sub-questions, researcher
+  agents answer each from your code, a synthesizer combines them, a critic fact-checks the
+  result, and a **Reflexion** loop self-corrects when the critic flags issues — all streamed
+  live over SSE.
+- **Generate repo insights** — an LLM **architecture diagram** (Mermaid), a data-driven
+  **code map**, an **onboarding guide**, a free **metrics dashboard** (languages, LOC, test
+  ratio, largest files), a **similar-code / duplication finder** (vector-only), and
+  **unit-test generation → PR**.
+- **Audit a repository** — a streaming fan-out reviewer scores the top-N files for bugs,
+  security, smells, and perf, with severity badges + a summary.
 - **Run commands in a sandbox** — disposable, network-isolated, non-root, resource-capped
-  Docker containers, gated by a command-safety policy.
-- **Create & review GitHub PRs** — generate a PR from file changes, or have the LLM
-  review an existing PR's diff.
+  Docker containers, gated by a command-safety policy. (Hidden on the managed cloud deploy,
+  which has no Docker socket — see the feature flag in §6.)
+- **Create & review GitHub PRs** — generate a PR from file changes, edit a chat answer into
+  a PR, or have the LLM review an existing PR's diff.
 - **Store memory** — durable user/project/conversation-scoped facts recalled by vector search.
 - **Observe everything** — Prometheus metrics, token/cost accounting, Grafana dashboards.
-- **Deploy** — Docker Compose for local/single-node, or a Helm chart for Kubernetes.
+- **Deploy** — Docker Compose for local/single-node, a Helm chart for Kubernetes, or the
+  **free-tier managed split** (Render + Vercel + Neon + Upstash + Qdrant Cloud + Groq + Jina)
+  documented in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ### Project status
 
@@ -51,6 +64,22 @@ RBAC, SSO/SCIM, billing, plugin marketplace) is planned. See
 | 9 | Deployment: Helm chart with HPA / PDB / NetworkPolicy / Ingress | ✅ |
 | 10 | Enterprise: orgs, fine-grained RBAC, SSO/SCIM, billing, marketplace | ⏳ planned |
 
+#### Additions beyond the original phase plan
+
+The following agentic / analytics features and a managed cloud deployment were added on top
+of Phases 1–9. All are **additive** — they layer on the existing architecture without
+changing the core flows:
+
+| Area | What was added |
+|------|----------------|
+| **Multi-agent pipeline** (`domain/agents`) | Planner → researchers → synthesizer → **critic** → **Reflexion** self-correction, streamed live over SSE (`/agents` page). |
+| **Repo insights** (`domain/insights`) | Architecture diagram (Mermaid), code map, onboarding docs, metrics dashboard, similar-code finder, unit-test generation → PR. |
+| **Repo audit** (`domain/audit`) | Streaming fan-out reviewer with severity-scored findings. |
+| **Web-search tool** (`infrastructure/websearch`) | A 4th chat tool (`web_search`) — keyless DuckDuckGo, or Tavily when `TAVILY_API_KEY` is set. |
+| **Chat resilience** | Tool-call de-dup + caps and graceful rate-limit handling to fit free-tier token limits. |
+| **UX** | Light/dark theme toggle, ⌘K command palette, change-password screen, `SANDBOX_ENABLED` feature flag. |
+| **Managed cloud deploy** | Free-tier split (Render + Vercel + Neon + Upstash + Qdrant Cloud), Groq LLM + Jina embeddings, inline subprocess ingestion. See §7.8 and [docs/DEPLOY.md](docs/DEPLOY.md). |
+
 ---
 
 ## 2. Technology stack at a glance
@@ -69,11 +98,12 @@ RBAC, SSO/SCIM, billing, plugin marketplace) is planned. See
 | Database | PostgreSQL 16 (with `citext`, `pgcrypto`, `pg_trgm` extensions) |
 | Cache / broker / pub-sub | Redis 7 (`redis.asyncio`) |
 | Vector store | Qdrant v1.11 |
-| Embeddings | sentence-transformers (`BAAI/bge-small-en-v1.5`, 384-dim) or OpenAI |
+| Embeddings | sentence-transformers (`BAAI/bge-small-en-v1.5`, 384-dim) local, or any OpenAI-compatible API (OpenAI, **Jina**, Gemini) |
 | Reranker | sentence-transformers CrossEncoder (`ms-marco-MiniLM-L-6-v2`) |
 | Code parsing | tree-sitter (via `tree-sitter-languages` prebuilt grammars) |
 | Token counting | tiktoken (`cl100k_base`) |
-| LLM providers | Ollama (local) + OpenAI (and OpenAI-compatible servers) |
+| LLM providers | Ollama (local) + any OpenAI-compatible chat API — OpenAI, **Groq** (cloud default), vLLM, LM Studio |
+| Web search | keyless DuckDuckGo, or Tavily when `TAVILY_API_KEY` is set (httpx) |
 | Sandbox | Docker SDK for Python (sibling containers) |
 | Auth | JWT (HS256 dev / RS256 prod), Argon2 password hashing (passlib) |
 | Logging | structlog (JSON in prod, colored console in dev) |
@@ -93,6 +123,8 @@ RBAC, SSO/SCIM, billing, plugin marketplace) is planned. See
 | Styling | Tailwind CSS 3.4 (dark mode via CSS variables) |
 | UI components | Custom shadcn-style `Button` / `Input` (no heavy UI lib) |
 | Code highlighting | react-syntax-highlighter (Prism.js, `vscDarkPlus`) |
+| Markdown | react-markdown + remark-gfm + `@tailwindcss/typography` |
+| Diagrams | mermaid (lazy-loaded chunk) for the architecture diagram + code map |
 | Icons | lucide-react |
 | Testing | Vitest + React Testing Library + jsdom |
 | Package manager | pnpm 9 |
@@ -217,7 +249,7 @@ AI_Coding_Agent_Project/
 
 | File | What it does |
 |------|--------------|
-| [apps/api/app/api/router.py](apps/api/app/api/router.py) | Top-level router that mounts all v1 sub-routers under `/api/v1` (health, auth, users, repositories, search, chat, memory, sandbox, github). |
+| [apps/api/app/api/router.py](apps/api/app/api/router.py) | Top-level router that mounts all v1 sub-routers under `/api/v1` (health, auth, users, repositories, search, chat, memory, sandbox, github, **agents, insights, audit**). |
 | [apps/api/app/api/middleware/request_id.py](apps/api/app/api/middleware/request_id.py) | Extracts or generates a UUID4 `X-Request-ID`, binds it to structlog contextvars, and echoes it in the response — every log line in a request carries the same correlation ID. |
 | [apps/api/app/api/middleware/metrics.py](apps/api/app/api/middleware/metrics.py) | Records HTTP request count and latency per `(method, route-template, status)`. Skips `/metrics` itself to avoid self-referential noise. |
 | [apps/api/app/api/middleware/rate_limit.py](apps/api/app/api/middleware/rate_limit.py) | **Sliding-window rate limiter** (60s) backed by Redis, keyed per `(subject, route_group)` where the subject is the user ID (authed) or client IP (anon). Different limits per group (auth 10/min, authed API 300/min, anon 30/min). **Fails open** if Redis is down. |
@@ -236,6 +268,9 @@ These are **thin** routers — they validate input, call a domain service, and s
 | [memory.py](apps/api/app/api/v1/memory.py) | List/create/delete durable memories scoped to user/project/conversation, with importance scores. |
 | [sandbox.py](apps/api/app/api/v1/sandbox.py) | `classify` a command (verdict + reason); **WebSocket** to stream isolated container execution with approval-gate enforcement. |
 | [github.py](apps/api/app/api/v1/github.py) | GitHub `status`, `create PR`, and `review PR` — all using the server-side PAT. |
+| [agents.py](apps/api/app/api/v1/agents.py) | `POST /run` (full multi-agent pipeline) and `GET /run/stream` (**SSE** streaming of each stage). Opens its own DB session inside the stream generator. |
+| [insights.py](apps/api/app/api/v1/insights.py) | Per-repo insights: `diagram`, `codemap`, `docs`, `metrics`, `files/{id}/similar`, `files/{id}/tests`. |
+| [audit.py](apps/api/app/api/v1/audit.py) | `GET /run/stream` — **SSE** streaming repo audit (one event per reviewed file + a summary). |
 | [health.py](apps/api/app/api/v1/health.py) | `ping`, `ready` (checks Postgres/Redis connectivity), and overall status. |
 
 ### 5.4 Domain layer (`apps/api/app/domain`)
@@ -296,10 +331,38 @@ Each bounded context follows the `models / repository / schemas / service` patte
   (up to 5 rounds)**: embed the user message → fetch RAG context (capped ~1500 tokens) →
   inject a system prompt with the repo inventory + durable memories → stream the LLM →
   execute tool calls → persist every message. Detects chit-chat (skips RAG) and "remember X"
-  cues (auto-saves a memory).
-- [tools.py](apps/api/app/domain/chat/tools.py) — Three **read-only** agent tools as
-  JSON-schema + handlers: `search_code`, `read_file`, `list_files`. Each returns
-  `(result, summary, citations)`.
+  cues (auto-saves a memory). **Guardrails:** de-dups + caps tool calls (2/round, 3/turn) and
+  caps each tool result, so a runaway model can't blow the free-tier token budget; a
+  `tool_use_failed` retries once without tools, and rate-limit / request-too-large errors
+  surface a clear message instead of crashing the turn.
+- [tools.py](apps/api/app/domain/chat/tools.py) — Four **read-only** agent tools as
+  JSON-schema + handlers: `search_code`, `read_file`, `list_files`, and `web_search`
+  (public web via `infrastructure/websearch`). Each returns `(result, summary, citations)`.
+
+#### `agents` — Multi-agent pipeline
+- [service.py](apps/api/app/domain/agents/service.py) — `AgentOrchestrator`: `_plan` (task →
+  sub-questions), `_research` (one grounded answer per sub-question via `SearchService`),
+  `_synthesize`, `_review` (critic returns a `VERDICT: accurate/issues/uncertain` + notes),
+  and `_refine` (**Reflexion** — revise once when the critic flags issues, then re-review).
+  Exposes `run()` and `run_stream()` (async generator of `(event, data)` per stage). Every
+  LLM call degrades gracefully on failure.
+- [schemas.py](apps/api/app/domain/agents/schemas.py) — `AgentRunRequest` (task,
+  repository_ids, max_steps, model, review), `AgentStep`, `AgentReview`, `AgentRunResponse`
+  (with a `refined` flag).
+
+#### `insights` — Repo insights & generators
+- [service.py](apps/api/app/domain/insights/service.py) — `InsightsService`: `diagram()`
+  (LLM → Mermaid architecture diagram, with syntax repair), `codemap()` (data-driven Mermaid
+  from the file tree — no LLM), `docs()` (LLM onboarding guide), `metrics()` (language
+  breakdown, LOC, test ratio, largest files — pure SQL, no LLM), `similar()` (dense Qdrant
+  retrieval to find near-duplicate chunks — no LLM), and `gen_tests()` (LLM unit-test file at
+  a conventional test path). Reuses `SearchService`, `FileRepo`, and the LLM provider.
+
+#### `audit` — Automated repo review
+- [service.py](apps/api/app/domain/audit/service.py) — `AuditService.run_stream()`: pick the
+  top-N most substantial source files, review each with an LLM for bugs / security / smells /
+  perf (parsed into severity-scored findings), and stream one event per file plus a summary.
+  Scoped by `depth`; reconstructs file content from indexed chunks (no re-clone).
 
 #### `memory` — Durable facts (Phase 7)
 - [models.py](apps/api/app/domain/memory/models.py) — `Memory` (scope enum
@@ -379,6 +442,10 @@ Concrete adapters behind the domain's abstract "ports".
   payload indexes; `ensure_collection`, `upsert_chunks`, `search`, `delete_points`.
 - [redis/client.py](apps/api/app/infrastructure/redis/client.py) — Process-wide
   `redis.asyncio` client singleton (`get_redis`, `close_redis`).
+- [websearch/client.py](apps/api/app/infrastructure/websearch/client.py) — Best-effort
+  `web_search()` for the chat agent: uses **Tavily** when `TAVILY_API_KEY` is set, else the
+  keyless **DuckDuckGo** Instant Answer API. Always returns a list (never raises), so a tool
+  call can't crash the conversation.
 
 #### Sandbox (Phase 5)
 - [sandbox/policy.py](apps/api/app/infrastructure/sandbox/policy.py) — Command classification
@@ -397,6 +464,7 @@ Concrete adapters behind the domain's abstract "ports".
 |------|--------------|
 | [tasks/celery_app.py](apps/api/app/tasks/celery_app.py) | Celery app factory: Redis broker/backend, task autodiscovery, model registration (so workers resolve ORM FKs), routing (ingest → `ingest` queue), multiprocess metrics server, JSON serialization, late acking. |
 | [tasks/ingest.py](apps/api/app/tasks/ingest.py) | The **ingestion task**: shallow-clone → walk files (filter ignored dirs / size / allowed languages) → detect language → extract symbols → AST-aware chunk → batch-insert files/symbols/chunks → embed in batches → upsert to Qdrant → publish progress on Redis pub/sub → mark job complete. |
+| [apps/api/app/ingest_cli.py](apps/api/app/ingest_cli.py) | **Inline (worker-less) ingestion** for the managed cloud deploy where there's no Celery worker: `RepositoryService.enqueue_ingest()` spawns this module as a one-shot subprocess (its own async engine + event loop), running the exact same pipeline and publishing the same Redis progress events. Toggled by `INGEST_INLINE`. Imports all four ORM model modules so FK targets resolve. |
 | [apps/api/app/worker_metrics.py](apps/api/app/worker_metrics.py) | Prometheus **multiprocess** aggregation for Celery: clears stale metric files and serves aggregated per-child metrics via `MultiProcessCollector` when `PROMETHEUS_MULTIPROC_DIR` is set. |
 
 ### 5.7 Database migrations (`apps/api/alembic`)
@@ -410,6 +478,10 @@ Concrete adapters behind the domain's abstract "ports".
 | [versions/0003_search.py](apps/api/alembic/versions/0003_search.py) | Adds a generated STORED `content_tsv` column + GIN index on `code_chunks` for full-text search. |
 | [versions/0004_chat.py](apps/api/alembic/versions/0004_chat.py) | Chat schema: `conversations`, `messages` (+ `message_role` enum). |
 | [versions/0005_memory.py](apps/api/alembic/versions/0005_memory.py) | Memory schema: `memories` (+ scope/source enums, indexes). |
+
+> The multi-agent, insights, audit, and web-search features add **no new migrations** — they
+> read from and reuse the existing tables (`repository_files`, `code_chunks`, `code_symbols`,
+> Qdrant collections), so the schema is unchanged.
 
 ### 5.8 Backend build & tests
 
@@ -432,7 +504,8 @@ sandbox streaming, automatic **token refresh on 401**.
 | File | What it does |
 |------|--------------|
 | [src/main.tsx](apps/web/src/main.tsx) | React 18 root: `BrowserRouter` + `QueryClientProvider` (retry 1, 30s staleTime, no refetch on focus) + StrictMode. |
-| [src/App.tsx](apps/web/src/App.tsx) | Route table: public `/login`, `/register`; everything else wrapped in `RequireAuth + AppShell` (`/dashboard`, `/repositories/:id`, `/search`, `/chat/:id`, `/memory`, `/sandbox`, `/github`). |
+| [src/App.tsx](apps/web/src/App.tsx) | Route table: public `/login`, `/register`; everything else wrapped in `RequireAuth + AppShell` (`/dashboard`, `/repositories/:id`, `/search`, `/chat/:id`, `/agents`, `/memory`, `/github`, `/settings`, and `/sandbox` **only when `SANDBOX_ENABLED`**). |
+| [src/lib/features.ts](apps/web/src/lib/features.ts) | Build-time feature flags. `SANDBOX_ENABLED` (`VITE_SANDBOX_ENABLED === "true"`) gates the Sandbox nav item + route — off on the managed cloud deploy (no Docker socket), on in local docker-compose. |
 | [src/index.css](apps/web/src/index.css) | Tailwind directives + light/dark CSS variables. |
 | [src/env.d.ts](apps/web/src/env.d.ts) | Vite env typings (`VITE_API_BASE_URL`, `VITE_WS_BASE_URL`). |
 | [index.html](apps/web/index.html) | SPA entry (`#root`, dark class, Vite module script). |
@@ -448,7 +521,14 @@ sandbox streaming, automatic **token refresh on 401**.
 | File | What it does |
 |------|--------------|
 | [src/components/layout/require-auth.tsx](apps/web/src/components/layout/require-auth.tsx) | Guard HOC: checks for an access token, hydrates the user via `GET /me`, redirects to `/login` if missing. |
-| [src/components/layout/shell.tsx](apps/web/src/components/layout/shell.tsx) | Two-column app layout: sidebar nav (Dashboard, Repositories, Search, Chat, Memory, Sandbox, GitHub) + user email + logout. |
+| [src/components/layout/shell.tsx](apps/web/src/components/layout/shell.tsx) | Two-column app layout: sidebar nav (Dashboard, Repositories, Search, Chat, **Agents**, Memory, GitHub, Settings, and Sandbox when enabled) + a **light/dark theme toggle**, user email, logout, and the mounted command palette. |
+| [src/components/layout/command-palette.tsx](apps/web/src/components/layout/command-palette.tsx) | **⌘K / Ctrl-K command palette**: fuzzy-filter + keyboard nav to jump between pages. |
+| [src/lib/theme.ts](apps/web/src/lib/theme.ts) | Theme helpers: `getStoredTheme()` / `applyTheme()` toggle the `dark` class and persist to `localStorage` (`aca.theme`); `index.html` applies it pre-paint to avoid a flash. |
+| [src/components/mermaid.tsx](apps/web/src/components/mermaid.tsx) | Renders a Mermaid diagram (lazy-imports `mermaid`, validates before render, falls back to raw text on invalid syntax). Used by the architecture diagram + code map. |
+| [src/components/repo/metrics-panel.tsx](apps/web/src/components/repo/metrics-panel.tsx) | The metrics dashboard (language bar, LOC/size/test stats, largest files). |
+| [src/components/repo/insights-section.tsx](apps/web/src/components/repo/insights-section.tsx) | Buttons + rendering for the architecture diagram, code map, and onboarding docs. |
+| [src/components/repo/audit-section.tsx](apps/web/src/components/repo/audit-section.tsx) | The audit UI: depth/model controls, SSE streaming of per-file findings + summary. |
+| [src/components/chat/panels.tsx](apps/web/src/components/chat/panels.tsx) | Citation → code side-panel and the "Open as PR" modal (`PrModal`, path pre-fillable — reused by chat and test-gen). |
 | [src/components/ui/button.tsx](apps/web/src/components/ui/button.tsx) | shadcn-style button: variants (default/outline/ghost/destructive), sizes, loading state. |
 | [src/components/ui/input.tsx](apps/web/src/components/ui/input.tsx) | Styled text input with focus ring + disabled state. |
 
@@ -456,8 +536,8 @@ sandbox streaming, automatic **token refresh on 401**.
 
 | File | What it does |
 |------|--------------|
-| [src/lib/api.ts](apps/web/src/lib/api.ts) | The **central typed API client**. Injects `Authorization: Bearer`, handles **401 → single refresh attempt**, raises a structured `ApiError`, and exposes typed methods for every endpoint (auth, repos, search, context, chat, memory, sandbox, github). Builds SSE & WebSocket URLs (token in query string). |
-| [src/lib/sse.ts](apps/web/src/lib/sse.ts) | `readSse()` async generator: fetches `text/event-stream` with a Bearer header (something the browser `EventSource` can't do), parses the SSE protocol, yields `{event, data}`. |
+| [src/lib/api.ts](apps/web/src/lib/api.ts) | The **central typed API client**. Injects `Authorization: Bearer`, handles **401 → single refresh attempt**, raises a structured `ApiError`, and exposes typed methods for every endpoint (auth, repos, search, context, chat, memory, sandbox, github, **agents, insights: diagram/codemap/docs/metrics/similar/tests**). Builds SSE & WebSocket URLs (token in query string). |
+| [src/lib/sse.ts](apps/web/src/lib/sse.ts) | `readSse()` async generator: fetches `text/event-stream` with a Bearer header (something the browser `EventSource` can't do), **normalizes CRLF**, parses the SSE protocol, yields `{event, data}`. Drives ingest progress **and** the agents + audit streams. |
 | [src/lib/utils.ts](apps/web/src/lib/utils.ts) | `cn()` — clsx + tailwind-merge classname composition. |
 
 ### 6.4 State stores (Zustand)
@@ -475,12 +555,14 @@ sandbox streaming, automatic **token refresh on 401**.
 | [register.tsx](apps/web/src/routes/register.tsx) | Register → auto-login. |
 | [dashboard.tsx](apps/web/src/routes/dashboard.tsx) | Welcome cards: user info, live platform status (10s refetch), roadmap. |
 | [repositories.tsx](apps/web/src/routes/repositories.tsx) | List/create/delete repos, trigger ingest; status + stats; 5s refetch with query invalidation. |
-| [repository-detail.tsx](apps/web/src/routes/repository-detail.tsx) | Repo header, **live ingest progress via SSE**, job history, file browser, chunk previews with Prism.js highlighting. |
+| [repository-detail.tsx](apps/web/src/routes/repository-detail.tsx) | Repo header, **live ingest progress via SSE**, job history, **metrics dashboard**, **insights** (diagram / code map / onboarding docs), **security & quality audit**, file browser, chunk previews (Prism.js), plus per-file **"Find similar code"** and **"Generate tests → PR"**. |
 | [search.tsx](apps/web/src/routes/search.tsx) | Search form (mode toggle, rerank checkbox, repo scoping); results with rank/score/sub-scores and highlighted code. |
-| [chat.tsx](apps/web/src/routes/chat.tsx) | Conversation sidebar + chat thread; **WebSocket streaming** of tokens, tool calls, and citations; markdown-lite code highlighting; stop button. |
+| [chat.tsx](apps/web/src/routes/chat.tsx) | Conversation sidebar + chat thread; **WebSocket streaming** of tokens, tool calls, and citations; full markdown rendering, model picker, clickable citations → code panel, and "Open as PR" from a code answer; stop button. |
+| [agents.tsx](apps/web/src/routes/agents.tsx) | The **multi-agent pipeline** page: task input, model + fact-check (critic) toggle, repo scoping; **live SSE** of Planner → Researchers → Synthesizer → Critic → Reflexion, with a "self-corrected" badge and an estimated-token meter. |
 | [memory.tsx](apps/web/src/routes/memory.tsx) | Add/list/forget memories with scope badges, source, and access count. |
-| [sandbox.tsx](apps/web/src/routes/sandbox.tsx) | Repo + command input → WebSocket run with classify verdict, approval prompt, ANSI-stripped output. |
+| [sandbox.tsx](apps/web/src/routes/sandbox.tsx) | Repo + command input → WebSocket run with classify verdict, approval prompt, ANSI-stripped output. *(Hidden unless `SANDBOX_ENABLED`.)* |
 | [github.tsx](apps/web/src/routes/github.tsx) | GitHub status; review a PR; create a PR (form). |
+| [settings.tsx](apps/web/src/routes/settings.tsx) | Profile + **change-password** screen (`PATCH /users/me`). |
 
 ### 6.6 Frontend tests & build
 
@@ -566,6 +648,28 @@ exposes port 9100 for multiprocess Prometheus metrics.
 | [docs/PHASES.md](docs/PHASES.md) | The full 10-phase roadmap with the detailed scope of each phase. |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model, auth design (Argon2id, JWT, refresh rotation), RBAC, rate limits, sandbox hardening, secrets handling, audit logging, security headers, dependency hygiene. |
 | [docs/adr/0001-async-sqlalchemy.md](docs/adr/0001-async-sqlalchemy.md) | ADR explaining the choice of SQLAlchemy 2.0 async over alternatives, and the resulting repository + separate-schemas pattern. |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Step-by-step guide for the **free-tier managed deploy** (Render + Vercel + Neon + Upstash + Qdrant Cloud + Groq + Jina). |
+
+### 7.8 Managed cloud deployment (free-tier split)
+
+Besides Docker Compose (local) and Helm (Kubernetes), the app runs on a **fully free managed
+split** where each concern is a separate SaaS free tier. This trades the Docker sandbox
+(no host socket on managed PaaS) for zero-cost hosting; everything else works.
+
+| Concern | Service | Notes |
+|---------|---------|-------|
+| Backend API | **Render** (Python web service) | Built from `apps/api`; config in [render.yaml](render.yaml), deps in [apps/api/requirements-deploy.txt](apps/api/requirements-deploy.txt). No Celery worker → ingestion runs **inline** (`INGEST_INLINE=true`, see `ingest_cli.py`). |
+| Frontend | **Vercel** | Vite build; config in [apps/web/vercel.json](apps/web/vercel.json). |
+| Postgres | **Neon** | asyncpg with SSL; `session.py` strips `sslmode`/`channel_binding` and passes `ssl=require`. |
+| Redis | **Upstash** | Pub/sub for ingest progress + rate-limit store. |
+| Vectors | **Qdrant Cloud** | One collection per repo. |
+| Chat LLM | **Groq** | OpenAI-compatible; default model `llama-3.1-8b-instant` (free tier ≈ 6000 TPM — the chat tool-call caps keep requests under it). |
+| Embeddings | **Jina** | OpenAI-compatible embeddings API (with retry/backoff on 429). |
+| Web search (optional) | **Tavily** | Set `TAVILY_API_KEY` for high-quality results; otherwise keyless DuckDuckGo. |
+
+Key differences from the Docker stack: **no Celery worker** (ingestion is a subprocess), **no
+sandbox** (`SANDBOX_ENABLED=false`, hidden in the UI), and **SSE** (not Celery events) carries
+live ingest / agents / audit progress. Full walkthrough: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ---
 
@@ -604,6 +708,14 @@ Then open:
 **Default seeded admin** (if `SEED_ADMIN=true`): `admin@local.test` / `changeme123!` —
 change immediately and disable the seed before exposing this anywhere.
 
+### Cloud (free-tier managed split)
+
+To deploy publicly at zero cost, follow [docs/DEPLOY.md](docs/DEPLOY.md): push the backend to
+**Render** ([render.yaml](render.yaml)), the frontend to **Vercel**
+([apps/web/vercel.json](apps/web/vercel.json)), and point them at **Neon** (Postgres),
+**Upstash** (Redis), **Qdrant Cloud**, **Groq** (chat), and **Jina** (embeddings). This mode
+sets `INGEST_INLINE=true` (no Celery worker) and `SANDBOX_ENABLED=false` (no Docker socket).
+
 ### LLM providers
 
 Configure in `.env`:
@@ -612,10 +724,12 @@ Configure in `.env`:
   `OLLAMA_DEFAULT_MODEL=llama3.2:latest`. Containers reach the host's Ollama via
   `host.docker.internal:11434`. If chat fails with `ConnectError: All connection attempts
   failed`, Ollama isn't running — start it (`ollama serve`) or use the Windows launcher.
-- **OpenAI:** `LLM_PROVIDER=openai` + `OPENAI_API_KEY`.
+- **OpenAI-compatible (OpenAI / Groq / vLLM / LM Studio):** `LLM_PROVIDER=openai` +
+  `OPENAI_API_KEY` + `OPENAI_BASE_URL`. The cloud deploy uses **Groq**
+  (`OPENAI_BASE_URL=https://api.groq.com/openai/v1`, model `llama-3.1-8b-instant`).
 
-GitHub PR generation/review needs `GITHUB_TOKEN` (a PAT) in `.env` — server-side only,
-never sent to the frontend.
+GitHub PR generation/review needs `GITHUB_TOKEN` (a PAT with `repo` scope) in `.env` —
+server-side only, never sent to the frontend.
 
 ---
 
@@ -649,12 +763,17 @@ If you remember only a few things:
    `models.py` are the DB.
 3. **Three data stores**: Postgres (system of record + full-text search), Qdrant (vectors),
    Redis (cache, rate limits, Celery broker, pub/sub).
-4. **Long work is async** via Celery (ingestion), streamed to the UI via SSE (ingest
-   progress) and WebSocket (chat, sandbox).
-5. **LLMs and embeddings are pluggable** behind Protocols — swap Ollama ⇄ OpenAI with one
-   env var.
-6. **Everything is observable** (Prometheus metrics + cost accounting) and **deployable**
-   (Docker Compose locally, Helm on Kubernetes).
+4. **Long work is async** via Celery (ingestion) — or an **inline subprocess** on the
+   worker-less cloud deploy — streamed to the UI via **SSE** (ingest progress, the multi-agent
+   pipeline, the audit) and **WebSocket** (chat, sandbox).
+5. **LLMs and embeddings are pluggable** behind Protocols — swap Ollama ⇄ OpenAI ⇄ Groq (chat)
+   and local ⇄ OpenAI ⇄ Jina (embeddings) with env vars.
+6. **The agentic layer sits on top of RAG**: the single-agent chat calls read-only tools
+   (`search_code`/`read_file`/`list_files`/`web_search`); the **multi-agent pipeline** and the
+   **audit** fan out over the same retrieval + LLM, and the **insights** generators turn the
+   indexed code into diagrams, docs, metrics, similar-code, and tests.
+7. **Everything is observable** (Prometheus metrics + cost accounting) and **deployable** three
+   ways: Docker Compose locally, Helm on Kubernetes, or the free-tier managed split.
 
 Start by reading [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), then trace one feature
 end-to-end (ingestion is the richest): `api/v1/repositories.py` → `domain/repositories/service.py`
