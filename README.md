@@ -30,6 +30,21 @@ against them.
 > deployment the sandbox is disabled (managed PaaS has no Docker socket) and
 > chat/embeddings use hosted providers — details in [docs/DEPLOY.md](docs/DEPLOY.md).
 
+## 📚 Documentation
+
+New here? These three cover the project from every angle:
+
+- **[End-to-End Guide](Ai_coding_agent.md)** — a complete walkthrough of the codebase:
+  what every file does and how the pieces fit together.
+- **[Architecture Diagrams](docs/ARCHITECTURE_DIAGRAM.md)** — six layered Mermaid
+  diagrams (system context → layered backend → ingestion → RAG chat → multi-agent →
+  deployment), with a build narrative.
+- **[Interview Prep](docs/INTERVIEW_PREP.md)** — a from-zero study path (where to start,
+  the flows to trace) plus an interview question bank with model answers.
+
+More: [DEPLOY.md](docs/DEPLOY.md) · [MCP.md](docs/MCP.md) · [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+· [SECURITY.md](docs/SECURITY.md) · [PHASES.md](docs/PHASES.md)
+
 ## Architecture at a glance
 
 ```mermaid
