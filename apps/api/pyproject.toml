@@ -76,6 +76,12 @@ dev = [
   "types-passlib",
   "ipython==8.29.0",
 ]
+# Optional: the local MCP server (app.mcp_server). Not needed by the web/worker
+# runtime — install with `pip install .[mcp]` (or `pip install fastmcp`) to run it.
+mcp = [
+  "fastmcp>=2.0",
+  "httpx>=0.27",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
