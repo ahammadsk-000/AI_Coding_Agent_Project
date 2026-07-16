@@ -7,6 +7,7 @@ from app.api.v1 import agents as v1_agents
 from app.api.v1 import audit as v1_audit
 from app.api.v1 import auth as v1_auth
 from app.api.v1 import chat as v1_chat
+from app.api.v1 import eval as v1_eval
 from app.api.v1 import github as v1_github
 from app.api.v1 import health as v1_health
 from app.api.v1 import insights as v1_insights
@@ -33,3 +34,4 @@ api_router.include_router(v1_github.router, prefix="/api/v1/github", tags=["gith
 api_router.include_router(v1_agents.router, prefix="/api/v1/agents", tags=["agents"])
 api_router.include_router(v1_insights.router, prefix="/api/v1/insights", tags=["insights"])
 api_router.include_router(v1_audit.router, prefix="/api/v1/audit", tags=["audit"])
+api_router.include_router(v1_eval.router, prefix="/api/v1/eval", tags=["eval"])

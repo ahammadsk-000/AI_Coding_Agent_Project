@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   Workflow,
+  FlaskConical,
   Sun,
   Moon,
 } from "lucide-react";
@@ -64,6 +65,7 @@ export function AppShell() {
           <NavItem to="/search" icon={<Search className="h-4 w-4" />} label="Search" />
           <NavItem to="/chat" icon={<MessageSquare className="h-4 w-4" />} label="Chat" />
           <NavItem to="/agents" icon={<Workflow className="h-4 w-4" />} label="Agents" />
+          <NavItem to="/eval" icon={<FlaskConical className="h-4 w-4" />} label="RAG Eval" />
           <NavItem to="/memory" icon={<Brain className="h-4 w-4" />} label="Memory" />
           {SANDBOX_ENABLED ? (
             <NavItem to="/sandbox" icon={<Terminal className="h-4 w-4" />} label="Sandbox" />

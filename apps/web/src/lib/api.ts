@@ -335,6 +335,24 @@ export interface GeneratedTests {
   content: string;
 }
 
+export interface RagMetric {
+  score: number;
+  reason: string;
+}
+
+export interface RagEvalResult {
+  query: string;
+  answer: string;
+  contexts: { file_path: string; start_line: number; end_line: number; content: string }[];
+  retrieved: number;
+  reranked: boolean;
+  took_ms: number;
+  metrics: Record<string, RagMetric>;
+  overall?: number;
+  note?: string;
+  model: string;
+}
+
 export interface AgentStep {
   title: string;
   finding: string;
@@ -580,6 +598,13 @@ export const api = {
     apiRequest<{ markdown: string }>(`/api/v1/insights/${id}/docs`, { method: "POST" }),
   repoCodemap: (id: string) =>
     apiRequest<{ mermaid: string }>(`/api/v1/insights/${id}/codemap`),
+
+  // ---- RAG evaluation ----
+  evalRag: (body: { query: string; repository_ids?: string[]; model?: string }) =>
+    apiRequest<RagEvalResult>("/api/v1/eval/rag", {
+      method: "POST",
+      body: { repository_ids: [], ...body },
+    }),
 
   // ---- multi-agent pipeline ----
   runAgents: (body: {

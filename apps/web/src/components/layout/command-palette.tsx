@@ -6,6 +6,7 @@ import {
   Search,
   MessageSquare,
   Workflow,
+  FlaskConical,
   Brain,
   Terminal,
   Github,
@@ -27,6 +28,7 @@ const COMMANDS: Command[] = [
   { label: "Search", to: "/search", icon: <Search className="h-4 w-4" /> },
   { label: "Chat", to: "/chat", icon: <MessageSquare className="h-4 w-4" /> },
   { label: "Agents", to: "/agents", icon: <Workflow className="h-4 w-4" /> },
+  { label: "RAG Eval", to: "/eval", icon: <FlaskConical className="h-4 w-4" /> },
   { label: "Memory", to: "/memory", icon: <Brain className="h-4 w-4" /> },
   ...(SANDBOX_ENABLED
     ? [{ label: "Sandbox", to: "/sandbox", icon: <Terminal className="h-4 w-4" /> }]
