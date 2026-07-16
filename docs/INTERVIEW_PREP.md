@@ -9,8 +9,8 @@ This is your single study document for the project. It has two parts:
   expect, grounded in *this* project.
 
 Companion docs: [Ai_coding_agent.md](../Ai_coding_agent.md) (exhaustive file-by-file
-guide), [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md) (diagrams),
-[INTERVIEW_TALKING_POINTS.md](INTERVIEW_TALKING_POINTS.md) (one-page cheat sheet).
+guide) and [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md) (diagrams). *(There is
+also a local one-page cheat sheet, `docs/INTERVIEW_TALKING_POINTS.md`, kept out of git.)*
 
 ---
 
