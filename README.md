@@ -46,6 +46,10 @@ New here? These three cover the project from every angle:
 (illustrated study guide with diagrams) and `docs/mock_interview.html` (interactive
 mock-interview simulator — 50 graded questions, reveal + self-scoring).
 
+**Engineering deep-dives:** [DECISIONS.md](docs/DECISIONS.md) (design trade-offs — "why X not
+Y") · [LIMITATIONS.md](docs/LIMITATIONS.md) (limitations + future work) ·
+[PERFORMANCE.md](docs/PERFORMANCE.md) (measured latency + cost).
+
 More: [DEPLOY.md](docs/DEPLOY.md) · [MCP.md](docs/MCP.md) · [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 · [SECURITY.md](docs/SECURITY.md) · [PHASES.md](docs/PHASES.md)
 
