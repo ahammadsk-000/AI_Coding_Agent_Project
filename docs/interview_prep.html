@@ -91,6 +91,7 @@
 <div class="layout">
   <nav class="toc">
     <strong style="font-size:15px;">📘 Study Guide</strong>
+    <a href="#mock" style="color:#7ee6c0;font-weight:600;margin-top:8px;">🎤 Mock interview (practice)</a>
     <h2>Understand it</h2>
     <a href="#pitch">The pitch</a>
     <a href="#arch">Architecture + diagrams</a>
@@ -124,6 +125,17 @@
       </div>
       <p class="muted" style="margin-top:14px;font-size:13px;">✔ Fully offline — diagrams render from a bundled local copy of Mermaid (<code>vendor/mermaid.min.js</code>), no internet needed. Just keep the <code>vendor/</code> folder next to this file.</p>
     </header>
+
+    <!-- ===================== MOCK INTERVIEW ===================== -->
+    <section id="mock">
+      <h2 class="sec"><span class="num">🎤</span>Interactive mock interview</h2>
+      <p>Practice out loud — one question at a time, hidden answers, reveal + self-score. 50 questions,
+         Basic → Advanced → Practical. Runs fully offline.
+         <a href="mock_interview.html" target="_blank" rel="noopener">Open full-screen ↗</a></p>
+      <iframe src="mock_interview.html" title="Mock Interview Simulator" loading="lazy"
+        style="width:100%;height:780px;border:1px solid var(--border);border-radius:12px;background:var(--bg);"></iframe>
+      <p class="muted" style="font-size:13px;">The simulator is also a standalone file (<code>docs/mock_interview.html</code>). If this embed is blank, open that file directly — some browsers restrict iframes of local files.</p>
+    </section>
 
     <!-- ===================== UNDERSTAND ===================== -->
     <section id="pitch">
