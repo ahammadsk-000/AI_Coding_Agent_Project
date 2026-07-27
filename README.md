@@ -42,6 +42,10 @@ New here? These three cover the project from every angle:
 - **[Interview Prep](docs/INTERVIEW_PREP.md)** — a from-zero study path (where to start,
   the flows to trace) plus an interview question bank with model answers.
 
+**Offline study tools** (open the HTML files locally in a browser): `docs/interview_prep.html`
+(illustrated study guide with diagrams) and `docs/mock_interview.html` (interactive
+mock-interview simulator — 50 graded questions, reveal + self-scoring).
+
 More: [DEPLOY.md](docs/DEPLOY.md) · [MCP.md](docs/MCP.md) · [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 · [SECURITY.md](docs/SECURITY.md) · [PHASES.md](docs/PHASES.md)
 

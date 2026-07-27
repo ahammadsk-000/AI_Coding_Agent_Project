@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Coding Agent — Mock Interview Simulator</title>
+<style>
+  :root{--bg:#0b0f16;--bg2:#111827;--card:#131a26;--border:#223049;--fg:#d7e0ee;--muted:#8ea3c0;
+    --accent:#5b8cff;--green:#34d399;--amber:#fbbf24;--red:#fb7185;--violet:#7c5cff;--code:#0e1420;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  .wrap{max-width:840px;margin:0 auto;padding:24px 18px 80px;}
+  h1{font-size:24px;margin:0 0 4px;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+  :not(pre)>code{background:#1b2436;padding:1px 6px;border-radius:5px;color:#b9c7e6}
+  pre{background:var(--code);border:1px solid var(--border);border-radius:9px;padding:12px 14px;
+    overflow-x:auto;font-size:12.5px;line-height:1.5;margin:10px 0}
+  pre code{color:#cbd5f5}
+
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+  .chip{background:#16203a;border:1px solid var(--border);color:var(--muted);border-radius:999px;
+    padding:5px 13px;font-size:13px;cursor:pointer;user-select:none;transition:.12s}
+  .chip:hover{color:var(--fg)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#04142e;font-weight:600}
+  .spacer{flex:1}
+  .stat{font-size:13px;color:var(--muted)}
+  .stat b{color:var(--green)}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px 24px;min-height:220px}
+  .meta{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .badge{font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .b-basic{background:rgba(52,211,153,.16);color:#7ee6c0}
+  .b-intermediate{background:rgba(91,140,255,.18);color:#a9c2ff}
+  .b-advanced{background:rgba(124,92,255,.2);color:#c3b2ff}
+  .b-practical{background:rgba(251,191,36,.16);color:#f4d38a}
+  .topic{font-size:12px;color:var(--muted)}
+  .q{font-size:19px;font-weight:600;color:#eaf1ff;margin:2px 0 6px;line-height:1.4}
+  .prompt{color:var(--muted);font-size:13px;font-style:italic}
+
+  .btn{background:var(--accent);color:#04142e;border:none;border-radius:9px;padding:11px 18px;
+    font-size:14px;font-weight:600;cursor:pointer;transition:.12s}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--fg);font-weight:500}
+  .btn.ghost:hover{background:#1a2334}
+  .reveal-row{margin-top:18px}
+
+  .answer{margin-top:16px;border-top:1px dashed var(--border);padding-top:16px;display:none}
+  .answer.show{display:block}
+  .answer h4{margin:16px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+  .answer h4.model{color:var(--green)}
+  .answer h4.strong{color:var(--accent)}
+  .answer h4.miss{color:var(--red)}
+  .answer ul{margin:6px 0;padding-left:20px}
+  .answer li{margin:3px 0}
+  .model-a p{margin:6px 0}
+
+  .rate{display:none;gap:8px;margin-top:16px;align-items:center}
+  .rate.show{display:flex}
+  .rate .lbl{font-size:13px;color:var(--muted);margin-right:2px}
+  .rate button{border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;border:1px solid var(--border);background:transparent}
+  .rate .got{color:var(--green);border-color:#2b6a52}
+  .rate .got:hover{background:rgba(52,211,153,.12)}
+  .rate .rev{color:var(--amber);border-color:#7a5f1e}
+  .rate .rev:hover{background:rgba(251,191,36,.12)}
+
+  .nav{display:flex;gap:10px;align-items:center;margin-top:22px}
+  .nav .spacer{flex:1}
+  .foot{margin-top:18px;font-size:12px;color:var(--muted)}
+  kbd{background:#1b2436;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 6px;font-size:12px}
+  @media(max-width:640px){.card{padding:18px 16px}.q{font-size:17px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎤 Mock Interview Simulator</h1>
+  <p class="sub">AI Coding Agent — think of your answer <em>out loud first</em>, then reveal. Rate yourself so you can drill the weak ones. Runs fully offline.</p>
+
+  <div class="controls">
+    <span class="chip on" data-f="All">All</span>
+    <span class="chip" data-f="Basic">Basic</span>
+    <span class="chip" data-f="Intermediate">Intermediate</span>
+    <span class="chip" data-f="Advanced">Advanced</span>
+    <span class="chip" data-f="Practical">Practical</span>
+    <span class="chip" data-f="Review">★ Review only</span>
+    <span class="spacer"></span>
+    <span class="stat" id="stat"></span>
+  </div>
+
+  <div class="card">
+    <div class="meta">
+      <span class="badge" id="level"></span>
+      <span class="topic" id="topic"></span>
+      <span class="spacer" style="flex:1"></span>
+      <span class="topic" id="counter"></span>
+    </div>
+    <div class="q" id="q"></div>
+    <div class="prompt">🗣️ Answer it out loud as if the interviewer is listening — then reveal.</div>
+
+    <div class="reveal-row">
+      <button class="btn" id="revealBtn">Reveal model answer</button>
+    </div>
+
+    <div class="answer" id="answer">
+      <h4 class="model">✅ Model answer</h4>
+      <div class="model-a" id="model"></div>
+      <h4 class="strong">🎯 A strong answer includes</h4>
+      <ul id="strong"></ul>
+      <h4 class="miss">⚠️ Common mistakes</h4>
+      <ul id="mistakes"></ul>
+    </div>
+
+    <div class="rate" id="rate">
+      <span class="lbl">How did you do?</span>
+      <button class="got" data-r="got">✓ Got it</button>
+      <button class="rev" data-r="review">↻ Needs work</button>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="btn ghost" id="prev">◀ Prev</button>
+    <button class="btn ghost" id="shuffle">🔀 Shuffle</button>
+    <button class="btn ghost" id="restart">↺ Restart</button>
+    <span class="spacer"></span>
+    <button class="btn" id="next">Next ▶</button>
+  </div>
+  <p class="foot">Shortcuts: <kbd>Space</kbd> reveal · <kbd>→</kbd> next · <kbd>←</kbd> prev · <kbd>1</kbd> got it · <kbd>2</kbd> needs work. Your ratings are saved in this browser.</p>
+</div>
+
+<script>
+const Q = [
+  // ---------------- BASIC ----------------
+  {level:"Basic",topic:"Overview",q:"In one or two sentences, what is this project?",
+   model:"<p>A self-hostable <b>agentic RAG platform over your codebase</b>: you point it at a GitHub repo, it clones and indexes the code with tree-sitter + embeddings, and then you can search it, chat with a RAG + tool-using agent, run a multi-agent pipeline, and open PRs.</p>",
+   strong:["Lead with a crisp one-liner (\"agentic RAG over your code\")","Name the loop: ingest → search / chat / agents","Mention it's deployed / production"],
+   mistakes:["Starting with \"I built...\" with no hook","Listing features with no framing","Forgetting to say what problem it solves"]},
+
+  {level:"Basic",topic:"Problem",q:"What problem does it solve?",
+   model:"<p>Understanding a large/unfamiliar codebase is slow. This lets you ask natural-language questions and get answers grounded in the actual code (with citations), search semantically, and get automated review/insights — instead of manually grepping and reading files.</p>",
+   strong:["Frame the pain (onboarding / navigating unfamiliar code)","Grounded answers with citations, not hallucinations"],
+   mistakes:["Only describing features, not the pain they remove"]},
+
+  {level:"Basic",topic:"Stack",q:"What's the tech stack — backend, frontend, and data stores?",
+   model:"<p><b>Backend:</b> async FastAPI + SQLAlchemy 2.0 (Python). <b>Frontend:</b> React + Vite + TypeScript. <b>Data:</b> Postgres (records + full-text), Qdrant (vectors), Redis (cache, rate-limit, pub/sub). <b>LLM/embeddings</b> are pluggable (Ollama/OpenAI/Groq · local/Jina).</p>",
+   strong:["Three data stores and what each is for","Async backend","Pluggable providers"],
+   mistakes:["Saying just \"a vector DB\" without naming Qdrant/Postgres/Redis","Not knowing which store does what"]},
+
+  {level:"Basic",topic:"Features",q:"What are the main features?",
+   model:"<p>Repo ingestion, hybrid search, RAG chat (with tools + citations), a multi-agent pipeline (planner→researchers→synthesizer→critic), repo insights (diagram/metrics/docs), an audit agent, RAG evaluation, memory, and GitHub PR creation + AI review.</p>",
+   strong:["Group them: ingest → retrieve → chat → agentic → ops","Mention the agentic ones (that's the differentiator)"],
+   mistakes:["Rambling an unordered list","Forgetting the multi-agent / eval features"]},
+
+  {level:"Basic",topic:"RAG",q:"What is RAG, in simple terms?",
+   model:"<p>Retrieval-Augmented Generation: <b>Retrieve</b> the most relevant chunks for a question, <b>Augment</b> the LLM's prompt with them, and <b>Generate</b> an answer grounded in that context — so it uses real data instead of hallucinating.</p>",
+   strong:["The 3 words: retrieve, augment, generate","Why: grounding / reduce hallucination"],
+   mistakes:["Confusing RAG with fine-tuning","Saying it 'trains' the model on your data (it doesn't)"]},
+
+  {level:"Basic",topic:"Embeddings",q:"What is an embedding?",
+   model:"<p>A vector (list of numbers) representing text's meaning, where similar meanings map to nearby vectors. It lets you search by <em>semantics</em> — measuring similarity with cosine distance — instead of exact keywords.</p>",
+   strong:["Meaning → vector; nearby = similar","Cosine similarity"],
+   mistakes:["Describing it as a hash / keyword index"]},
+
+  {level:"Basic",topic:"Vector DB",q:"What is a vector database and why Qdrant?",
+   model:"<p>A store optimized for nearest-neighbor search over embedding vectors. Qdrant does fast approximate search (HNSW) with cosine distance and metadata filtering. I use one collection per repo.</p>",
+   strong:["Nearest-neighbor / ANN search","One collection per repo","Payload/metadata for filtering + hydration"],
+   mistakes:["Not knowing it's approximate (ANN)"]},
+
+  {level:"Basic",topic:"Ingestion",q:"What does 'ingestion' mean in this project?",
+   model:"<p>The offline pipeline that turns a repo into a searchable index: clone → parse → chunk → embed → index into Qdrant + Postgres, with live progress. After it, the repo is 'ready'.</p>",
+   strong:["The 5 verbs: clone, parse, chunk, embed, index","It's a background job"],
+   mistakes:["Thinking it happens per-query (it's done once, ahead of time)"]},
+
+  {level:"Basic",topic:"Chunking",q:"What is a chunk and why chunk at all?",
+   model:"<p>A chunk is a small, embeddable piece of a file. You chunk because you can't embed a whole file usefully — retrieval needs granular, focused pieces, and the LLM has a limited context window. I chunk AST-aware so a chunk is a whole function/class.</p>",
+   strong:["Granularity for retrieval + context-window limits","AST-aware = semantically whole units"],
+   mistakes:["Saying you embed whole files","Not knowing why chunk size matters"]},
+
+  {level:"Basic",topic:"Providers",q:"Why are the LLM and embeddings 'pluggable'?",
+   model:"<p>They sit behind a Protocol (interface) with a factory, so I can swap Ollama ⇄ OpenAI ⇄ Groq (and local ⇄ Jina embeddings) with one env var — even per conversation. The rest of the code depends on the interface, not a concrete SDK.</p>",
+   strong:["Ports & adapters / Protocol","Config-driven swap; testability"],
+   mistakes:["Not being able to say WHY it matters (swap/test)"]},
+
+  {level:"Basic",topic:"Search vs Chat",q:"What's the difference between the Search and Chat features?",
+   model:"<p>Search returns ranked code chunks for a query (retrieval only). Chat runs the full RAG loop — it retrieves, then an LLM answers in natural language grounded in that code, with tools and citations, streamed live.</p>",
+   strong:["Search = retrieval; Chat = retrieval + generation","Chat adds tools + citations + streaming"],
+   mistakes:["Treating them as the same thing"]},
+
+  {level:"Basic",topic:"Deployment",q:"Where and how is it deployed?",
+   model:"<p>Three ways: Docker Compose locally, a Helm chart for Kubernetes, and a free-tier managed split — Render (API), Vercel (SPA), Neon (Postgres), Upstash (Redis), Qdrant Cloud, Groq (LLM), Jina (embeddings).</p>",
+   strong:["Name the free-tier split","Mention graceful degradation (inline ingest, sandbox off)"],
+   mistakes:["Only saying 'on the cloud' with no specifics"]},
+
+  // ---------------- INTERMEDIATE ----------------
+  {level:"Intermediate",topic:"Ingestion",q:"Walk me through the entire ingestion pipeline, step by step.",
+   model:"<p>Click Ingest → create a job row + dispatch to the background (Celery task or inline subprocess). Then: <b>shallow clone</b> → walk & filter files + detect language → <b>tree-sitter parse</b> to extract symbols → <b>AST-aware chunking</b> (token-budgeted) → <b>embed</b> in batches → <b>index</b>: upsert vectors to Qdrant (one collection/repo) + write files/symbols/chunks to Postgres → publish progress to Redis → SSE to the UI → mark repo <code>ready</code>.</p>",
+   strong:["The 5 verbs in order","Two stores (Qdrant + Postgres)","Live progress via Redis → SSE","AST-aware chunking detail"],
+   mistakes:["Skipping the two-store step","Forgetting it's a background job","Vague on chunking"]},
+
+  {level:"Intermediate",topic:"Hybrid search",q:"What makes your search 'hybrid'? Why not just vector similarity?",
+   model:"<p>I run two searches in parallel: <b>dense</b> vector search in Qdrant (captures meaning) and <b>sparse</b> full-text search in Postgres (captures exact tokens/identifiers). Pure vectors miss exact matches like a function name; pure keyword misses paraphrase. Code needs both, so I fuse the two ranked lists.</p>",
+   strong:["Dense = semantics, sparse = exact tokens","Concrete example (identifier vs concept)","Run in parallel, then fuse"],
+   mistakes:["Only describing vector search","Not explaining the weakness of each alone"]},
+
+  {level:"Intermediate",topic:"RRF",q:"How do you combine the dense and sparse results?",
+   model:"<p>Reciprocal Rank Fusion (RRF): each chunk scores <code>Σ 1/(k + rank)</code> across the two lists, with k=60. It fuses on <b>rank, not raw score</b>, so I don't have to normalize incomparable cosine and ts_rank scales. A chunk ranked high in either list bubbles up.</p>",
+   strong:["Fuses on rank, not raw scores","k=60","Why: no score normalization needed"],
+   mistakes:["Saying you just add/average the scores","Not knowing why raw scores are incomparable"]},
+
+  {level:"Intermediate",topic:"Chunking",q:"What is AST-aware chunking and why does it matter?",
+   model:"<p>Using tree-sitter, I chunk on <b>symbol boundaries</b> (functions/classes) so each chunk is a semantically whole unit, budgeted by tiktoken tokens; oversized symbols split by a line-window, and unsupported languages fall back to plain line-window. Naive fixed-size chunking splits functions mid-body and wrecks retrieval + grounding.</p>",
+   strong:["Symbol boundaries = whole functions","Token budget; oversized fallback","The 'wrecks retrieval' contrast"],
+   mistakes:["Describing fixed-size chunking as your approach","Not explaining why it matters"]},
+
+  {level:"Intermediate",topic:"Rerank",q:"What is re-ranking and when is it worth it?",
+   model:"<p>After fusion I optionally run a <b>cross-encoder</b> that encodes (query, chunk) <em>together</em> for a precise relevance score, then reorders. It's much more accurate than bi-encoder retrieval but slow and uncacheable, so I apply it only to a small top-N pool, not the whole corpus.</p>",
+   strong:["Cross-encoder scores pair jointly","Accurate but slow → top-N only","Bi-encoder vs cross-encoder distinction"],
+   mistakes:["Confusing reranking with the initial retrieval","Not knowing why it's expensive"]},
+
+  {level:"Intermediate",topic:"Agent loop",q:"How does the chat agent loop work?",
+   model:"<p>It's a ReAct-style loop: build a prompt with the RAG context + tool definitions → stream the LLM. If it emits <code>tool_calls</code>, I execute them, append the results, and call the LLM again — repeat up to 5 rounds. When it returns no tool calls, that's the final answer. Tokens and citations stream to the user throughout.</p>",
+   strong:["LLM → tool_calls → execute → feed back → repeat","Stops when no tool calls; hard cap ≤5","Streaming"],
+   mistakes:["Not knowing the stop condition","Thinking tools run on every turn"]},
+
+  {level:"Intermediate",topic:"Tools",q:"What tools does the agent have, and why read-only?",
+   model:"<p><code>search_code</code>, <code>read_file</code>, <code>list_files</code>, and <code>web_search</code>. Read-only because the chat agent shouldn't mutate state; writes go through explicit, reviewable flows (GitHub PR creation, the sandbox).</p>",
+   strong:["Name the 4 tools","Read-only = safety; writes are gated"],
+   mistakes:["Not knowing the safety rationale"]},
+
+  {level:"Intermediate",topic:"Agent stop",q:"How does the agent decide when to stop?",
+   model:"<p>When the LLM returns a response with no <code>tool_calls</code>, the loop ends and that text is the answer. There's a hard cap of 5 rounds as a backstop against loops.</p>",
+   strong:["No tool_calls = done","Hard cap ≤5 rounds"],
+   mistakes:["Saying it runs a fixed number of times"]},
+
+  {level:"Intermediate",topic:"Multi-agent",q:"Explain your multi-agent pipeline and why a critic.",
+   model:"<p>Planner splits the task into sub-questions → one Researcher answers each, grounded in retrieved code → Synthesizer combines them → a <b>Critic</b> fact-checks the answer against the researchers' findings and returns accurate/issues/uncertain. A single pass can be confidently wrong; an independent critic catches unsupported claims. Each stage streams via SSE.</p>",
+   strong:["The stage order","Why a critic (catches hallucination)","Streamed live"],
+   mistakes:["Garbling the stage order","Not explaining the critic's purpose"]},
+
+  {level:"Intermediate",topic:"Memory",q:"How does memory work?",
+   model:"<p>Users have durable facts (remember/recall/forget). On a chat turn I recall relevant memories via vector search scoped to the user/project (Qdrant), plus pull the user's stored facts straight from Postgres as the source of truth. The agent also auto-captures 'remember that…' statements.</p>",
+   strong:["Vector recall scoped by user/project","Postgres as source of truth","Auto-capture"],
+   mistakes:["Confusing it with conversation history"]},
+
+  {level:"Intermediate",topic:"Streaming",q:"Why WebSocket for chat but SSE for ingestion/agents?",
+   model:"<p>Chat is bidirectional/interactive (send message, stream tokens, stop) → WebSocket. Ingest/agents/audit are server→client-only progress → SSE, which is simpler, works over plain HTTP, and auto-reconnects. I use a fetch-based SSE reader so I can send the Authorization header (browser EventSource can't).</p>",
+   strong:["Bidirectional vs one-way","SSE simpler for progress","The auth-header detail"],
+   mistakes:["Saying they're interchangeable"]},
+
+  {level:"Intermediate",topic:"Context",q:"How do you keep the prompt within the context window?",
+   model:"<p><code>pack_context</code> groups hits by file, merges overlapping/adjacent line ranges, and greedily packs chunks under a ~1500-token budget (measured with tiktoken). The context window is a budget you architect, not a dumping ground.</p>",
+   strong:["Token budget (~1500) via tiktoken","Merge overlaps; greedy pack"],
+   mistakes:["Saying you send all results","No mention of a budget"]},
+
+  {level:"Intermediate",topic:"Postgres FTS",q:"How does the keyword/full-text search work in Postgres?",
+   model:"<p>A generated STORED <code>content_tsv</code> column with a GIN index on the chunks table; queries use <code>plainto_tsquery</code> + <code>ts_rank_cd</code> for ranking. <code>plainto_tsquery</code> is forgiving of raw user text (no syntax errors).</p>",
+   strong:["content_tsv + GIN index","ts_rank_cd for ranking","plainto_tsquery is safe on raw input"],
+   mistakes:["Not knowing Postgres can do FTS at all"]},
+
+  {level:"Intermediate",topic:"Architecture",q:"What is the Clean Architecture / DDD layout here?",
+   model:"<p>Layers: <code>api/v1</code> (thin transport) → <code>domain/&lt;context&gt;</code> (models/repository/schemas/service) → <code>infrastructure</code> (adapters) → <code>core</code> (config/security/logging). Dependencies point inward; services never import FastAPI. models=DB, repository=DB access, schemas=API boundary, service=use case.</p>",
+   strong:["The 4 layers + dependency direction","The models/repo/schemas/service roles"],
+   mistakes:["Just saying 'it's layered' with no specifics"]},
+
+  {level:"Intermediate",topic:"Cost",q:"How do you track LLM cost?",
+   model:"<p><code>core/cost.py</code> counts tokens with tiktoken and multiplies by a per-1M-token price table (local models = free). It feeds a Prometheus cost counter, and the Agents page shows an estimated-token meter.</p>",
+   strong:["tiktoken token count × price table","Prometheus counter"],
+   mistakes:["No idea how cost is measured"]},
+
+  // ---------------- ADVANCED ----------------
+  {level:"Advanced",topic:"Retrieval strategy",q:"RAG vs fine-tuning vs long-context — when would you use each?",
+   model:"<p><b>RAG</b> for knowledge that changes / is large / proprietary — my case, since code changes constantly. <b>Fine-tuning</b> to change behavior/format/style or bake in a skill, not for facts. <b>Long-context</b> when the whole relevant corpus fits and recall beats cost. They compose.</p>",
+   strong:["RAG = changing facts; FT = behavior; LC = small corpus","'Fine-tuning isn't for facts'"],
+   mistakes:["Saying fine-tuning is how you 'add knowledge'","Treating them as mutually exclusive"]},
+
+  {level:"Advanced",topic:"ANN",q:"How does approximate nearest-neighbor search (HNSW) work, and why not exact kNN?",
+   model:"<p>Exact kNN is O(N·d) per query — too slow at scale. HNSW builds a navigable small-world graph with layered links; search greedily hops toward the query, giving ANN in ~log time, trading a little recall for big speed. Qdrant uses it with cosine distance.</p>",
+   strong:["Exact is linear scan → too slow","HNSW = graph, ~log time, recall/speed tradeoff"],
+   mistakes:["Thinking vector DBs do exact search","No idea what HNSW is"]},
+
+  {level:"Advanced",topic:"Reflexion",q:"What is Reflexion and how did you implement it?",
+   model:"<p>Self-correction from feedback. If the critic returns 'issues', I feed its critique back to the synthesizer to <b>revise once</b>, then <b>re-review</b>. It's a bounded loop (one iteration) so it can't spin forever.</p>",
+   strong:["Feedback → revise → re-check","Bounded (one pass)"],
+   mistakes:["Confusing it with chain-of-thought","Not bounding the loop"]},
+
+  {level:"Advanced",topic:"Agents",q:"What's the difference between a workflow and an agent?",
+   model:"<p>A <b>workflow</b> has a fixed, developer-defined control flow. An <b>agent</b> lets the LLM decide the next step (which tool, whether to continue). My chat is an agent (LLM-driven loop); my multi-agent pipeline is a structured orchestration — deterministic stages, each powered by an LLM.</p>",
+   strong:["Who controls flow: developer vs LLM","Classify your own two systems"],
+   mistakes:["Calling every LLM call an 'agent'"]},
+
+  {level:"Advanced",topic:"Evaluation",q:"How do you know your RAG is any good?",
+   model:"<p>A RAG-eval harness (LLM-as-judge) scoring <b>faithfulness</b> (claims grounded in retrieved code), <b>answer relevance</b>, and <b>context precision</b> — the RAGAS triad, reference-free (no labels). It runs the real pipeline, so it catches retrieval <em>and</em> generation regressions.</p>",
+   strong:["The three metrics","Reference-free / LLM-as-judge","Runs the real pipeline"],
+   mistakes:["Saying 'I just tried some questions'","No notion of measuring retrieval quality"]},
+
+  {level:"Advanced",topic:"Evaluation",q:"What's the weakness of LLM-as-judge, and how do you mitigate it?",
+   model:"<p>Judges are biased and noisy — verbosity, position, and self-preference bias. Mitigate with temperature 0, focused single-metric prompts, and a forced <code>SCORE:</code> format I parse. For rigor, add human-labeled goldens and correlate the judge against them.</p>",
+   strong:["Name the biases","Temp 0 + structured output","Human goldens for rigor"],
+   mistakes:["Treating judge scores as ground truth"]},
+
+  {level:"Advanced",topic:"MCP",q:"What is MCP and what did you build with it?",
+   model:"<p>Model Context Protocol — an open standard letting any AI host (Claude Desktop, IDEs) connect to tools/data uniformly ('USB-C for AI tools'). I built a FastMCP server exposing search_code/read_file/list_repositories over stdio; it's a thin client on my REST API, so Claude Desktop can search my indexed repos.</p>",
+   strong:["Standard interface for tools/data","What you exposed + that it wraps the REST API"],
+   mistakes:["Not knowing what MCP is (it's a hot topic)"]},
+
+  {level:"Advanced",topic:"Tool calling",q:"How does streaming tool-calling actually work under the hood?",
+   model:"<p>I stream the completion; text deltas go to the user, and tool-call fragments are reassembled — OpenAI streams the tool arguments as string pieces across chunks, so I concatenate by index and only json.loads once the stream ends. When the model finishes with tool_calls, I execute and loop.</p>",
+   strong:["Arguments stream in fragments","Reassemble by index, parse at the end"],
+   mistakes:["Thinking a tool call arrives as one complete object"]},
+
+  {level:"Advanced",topic:"Guardrails",q:"A model spammed a tool in a loop and blew your token budget. How did you fix it?",
+   model:"<p>Real bug. I de-dup identical tool calls, cap execution to 2/round and 3/turn then force a prose answer, cap each tool result to ~3000 chars, and treat rate-limit/413 as terminal with a friendly message. A tool_use_failed retries once without tools. Guardrails against runaway agents are a real production concern.</p>",
+   strong:["Dedup + per-round/per-turn caps","Result-size cap","Graceful rate-limit handling"],
+   mistakes:["No guardrails / 'the model just decides'"]},
+
+  {level:"Advanced",topic:"Scaling",q:"How would you scale this to 10× users?",
+   model:"<p>API is stateless → horizontal scale behind a load balancer (Helm HPA already). Move ingestion fully onto Celery and scale that pool independently. Bottlenecks are LLM/embedding rate limits and ingestion memory → batch embeddings, retry with backoff, per-repo collections, token-budgeted context. Next lever: semantic caching.</p>",
+   strong:["Stateless API → horizontal","Independent ingestion scaling","Name the real bottlenecks"],
+   mistakes:["'Just add more servers' with no bottleneck analysis"]},
+
+  {level:"Advanced",topic:"Embeddings",q:"You switched embedding providers in production — what broke?",
+   model:"<p>Embedding dimension and semantics are provider-specific — vectors aren't comparable across models, so the Qdrant collection dimension must match; I re-ingest. I also hit 429s on the hosted API, so I added retry-with-backoff and batching.</p>",
+   strong:["Dimensions/semantics differ → re-ingest","429 handling"],
+   mistakes:["Thinking you can mix vectors from different models"]},
+
+  {level:"Advanced",topic:"Data",q:"Tell me about a production database gotcha you solved.",
+   model:"<p>On Neon, asyncpg rejects the <code>sslmode</code> query param that libpq uses — the connection failed until I stripped <code>sslmode</code>/<code>channel_binding</code> from the URL and passed <code>ssl=require</code> via connect_args.</p>",
+   strong:["Specific, concrete driver-level detail","Shows you debug real infra"],
+   mistakes:["Generic 'connection issues' with no detail"]},
+
+  {level:"Advanced",topic:"Security",q:"Do you handle prompt injection?",
+   model:"<p>Mitigations: read-only tools, grounding + citation requirements, chit-chat/leaked-tool-call detection, and never executing model output directly (writes are gated). The fuller principle: treat retrieved content as untrusted, separate instructions from data, and validate outputs.</p>",
+   strong:["Concrete mitigations in the app","The general principle (untrusted content)"],
+   mistakes:["'I trust the model' / no awareness of the risk"]},
+
+  {level:"Advanced",topic:"Reliability",q:"Where does this break under load, and how do you mitigate?",
+   model:"<p>LLM/embedding rate limits first; then ingestion memory; then Postgres FTS on very large repos. Mitigations: batching, backoff, per-repo collections, token budgets, tool-call caps. And retrieval quality is the whole game — a bad retrieval can't be fixed downstream, which is why I built the eval harness.</p>",
+   strong:["Order the failure modes","Tie back to retrieval quality + eval"],
+   mistakes:["Claiming it 'scales fine' with no analysis"]},
+
+  // ---------------- PRACTICAL ----------------
+  {level:"Practical",topic:"Coding",q:"Implement Reciprocal Rank Fusion for two ranked lists.",
+   model:"<pre><code>def rrf_fuse(rankings, k=60):\n    scores, seen = {}, {}\n    for ranking in rankings:\n        for rank, item in enumerate(ranking):\n            scores[item.id] = scores.get(item.id, 0) + 1/(k + rank + 1)\n            seen.setdefault(item.id, item)\n    return sorted((seen[i] for i in scores),\n                  key=lambda it: scores[it.id], reverse=True)</code></pre>",
+   strong:["Fuse on rank (1/(k+rank)), not raw score","Dedup items seen in both lists"],
+   mistakes:["Averaging raw scores","Off-by-one on rank (start at 1)"]},
+
+  {level:"Practical",topic:"Coding",q:"Extend the chunker to split an oversized function.",
+   model:"<pre><code>def chunk_symbol(sym, lines, max_tokens, count):\n    body = \"\\n\".join(lines[sym.start:sym.end])\n    if count(body) &lt;= max_tokens:\n        yield Chunk(body, sym.start, sym.end)   # whole symbol\n        return\n    start = sym.start                            # too big: line-window\n    while start &lt; sym.end:\n        end = start\n        while end &lt; sym.end and count(\"\\n\".join(lines[start:end+1])) &lt;= max_tokens:\n            end += 1\n        end = max(end, start + 1)                 # always progress\n        yield Chunk(\"\\n\".join(lines[start:end]), start, end)\n        start = end</code></pre>",
+   strong:["Keep whole symbols when they fit","Line-window only when oversized; guarantee progress"],
+   mistakes:["Infinite loop when a single line exceeds the budget"]},
+
+  {level:"Practical",topic:"Coding",q:"Write the WebSocket chat handler (the transport layer).",
+   model:"<pre><code>@router.websocket(\"/{conv_id}/ws\")\nasync def chat_ws(ws: WebSocket, conv_id: UUID, access_token: str):\n    user = await authenticate(access_token)   # token via query param\n    await ws.accept()\n    async with session_factory() as session:\n        service = ChatService(session)\n        try:\n            while True:\n                frame = await ws.receive_json()\n                async for ev in service.send_message_streaming(user, conv_id, frame[\"content\"]):\n                    await ws.send_json(ev.model_dump(mode=\"json\"))\n        except WebSocketDisconnect:\n            return</code></pre>",
+   strong:["Auth via query param (WS can't set headers)","Loop: receive → drive service → forward events"],
+   mistakes:["Trying to pass a Bearer header on the WS handshake"]},
+
+  {level:"Practical",topic:"Coding",q:"Reassemble streamed tool-call fragments (OpenAI-style).",
+   model:"<pre><code>calls = {}\nasync for chunk in stream:\n    d = chunk.choices[0].delta\n    if d.content: yield TextDelta(d.content)\n    for tc in (d.tool_calls or []):\n        c = calls.setdefault(tc.index, {\"id\":\"\",\"name\":\"\",\"args\":\"\"})\n        c[\"id\"]   += tc.id or \"\"\n        c[\"name\"] += tc.function.name or \"\"\n        c[\"args\"] += tc.function.arguments or \"\"   # streamed in pieces\n# after stream: json.loads(c[\"args\"]) per call</code></pre>",
+   strong:["Concatenate arguments by index","Parse JSON only after the stream ends"],
+   mistakes:["json.loads on each fragment (invalid JSON mid-stream)"]},
+
+  {level:"Practical",topic:"Coding",q:"Write retry-with-backoff for the embeddings API.",
+   model:"<pre><code>async def embed_batch(texts, tries=4):\n    for attempt in range(tries):\n        try:\n            return await client.embed(texts)\n        except httpx.HTTPStatusError as e:\n            if e.response.status_code in (429,500,502,503) and attempt &lt; tries-1:\n                await asyncio.sleep(2 ** attempt)   # 1,2,4s\n                continue\n            raise</code></pre>",
+   strong:["Only retry transient statuses","Exponential backoff; re-raise on give-up"],
+   mistakes:["Retrying 4xx like 400/401","Fixed-delay hammering"]},
+
+  {level:"Practical",topic:"Coding",q:"Cosine similarity from scratch — and why normalize?",
+   model:"<pre><code>import math\ndef cosine(a, b):\n    dot = sum(x*y for x,y in zip(a,b))\n    na = math.sqrt(sum(x*x for x in a))\n    nb = math.sqrt(sum(y*y for y in b))\n    return dot/(na*nb) if na and nb else 0.0</code></pre><p>If vectors are normalized to unit length at ingest, na=nb=1, so cosine reduces to a plain <b>dot product</b> — cheaper. That's why we normalize.</p>",
+   strong:["Dot / (|a||b|)","Normalized → dot product"],
+   mistakes:["Forgetting the zero-vector guard"]},
+
+  {level:"Practical",topic:"SQL",q:"Write the Postgres full-text query for code chunks.",
+   model:"<pre><code>SELECT cc.id, rf.path,\n       ts_rank_cd(cc.content_tsv, plainto_tsquery('english', :q)) AS rank\nFROM code_chunks cc\nJOIN repository_files rf ON rf.id = cc.file_id\nWHERE cc.repository_id = ANY(:repo_ids)\n  AND cc.content_tsv @@ plainto_tsquery('english', :q)\nORDER BY rank DESC\nLIMIT :k;</code></pre>",
+   strong:["content_tsv @@ plainto_tsquery","ts_rank_cd for ranking; scope by repo"],
+   mistakes:["Using LIKE '%..%' instead of FTS","Forgetting the GIN-indexed tsvector"]},
+
+  {level:"Practical",topic:"Design",q:"Walk me through adding a new tool to the chat agent.",
+   model:"<p>Three steps in <code>chat/tools.py</code>: (1) add a <code>ToolDef</code> with a JSON-schema (name, description, parameters); (2) write an async handler <code>_handle_x(user, args, session) → (result, summary, citations)</code>; (3) register it in the <code>_HANDLERS</code> dict. The agent loop picks it up automatically. Keep it read-only and coerce arg types defensively.</p>",
+   strong:["ToolDef + handler + register","Read-only; defensive arg coercion"],
+   mistakes:["Forgetting the schema or the dispatch registration"]},
+
+  {level:"Practical",topic:"Debug",q:"Your SSE stream shows nothing. Debug it.",
+   model:"<p>Checklist: (1) Is the endpoint using the request-scoped DB session? FastAPI tears it down before the streaming generator runs → open a fresh session inside the generator. (2) Line-ending mismatch: parser splits on <code>\\n\\n</code> but the server emits <code>\\r\\n\\r\\n</code> → normalize CRLF. (3) Proxy buffering → set <code>X-Accel-Buffering: no</code>. (4) CORS/auth on the GET. (5) Is the generator actually yielding?</p>",
+   strong:["DB-session-lifecycle + CRLF (the two real causes here)","Proxy buffering, auth"],
+   mistakes:["Only checking the frontend"]},
+];
+
+// ---------- app ----------
+const el = id => document.getElementById(id);
+const LS = "aca.mock.marks";
+let marks = {};
+try { marks = JSON.parse(localStorage.getItem(LS) || "{}"); } catch { marks = {}; }
+let filter = "All";
+let view = [];   // list of question indices in current display order
+let vpos = 0;    // position within view
+
+function buildView(){
+  view = Q.map((_,i)=>i).filter(i =>
+    filter==="All"    ? true :
+    filter==="Review" ? marks[i]==="review" :
+    Q[i].level===filter);
+  vpos = 0;
+}
+function updateStat(){
+  const got = Object.values(marks).filter(v=>v==="got").length;
+  const rev = Object.values(marks).filter(v=>v==="review").length;
+  el("stat").innerHTML = "<b>"+got+"</b> got · <span style='color:var(--amber)'>"+rev+"</span> review · "+Q.length+" total";
+}
+function show(){
+  updateStat();
+  if(view.length===0){
+    el("level").textContent=""; el("level").className="badge";
+    el("topic").textContent=""; el("counter").textContent="0 / 0";
+    el("q").textContent = filter==="Review"
+      ? "Nothing marked 'Needs work' yet — mark some questions, then come back here to drill them."
+      : "No questions in this filter.";
+    el("model").innerHTML=""; el("strong").innerHTML=""; el("mistakes").innerHTML="";
+    el("answer").classList.remove("show"); el("rate").classList.remove("show");
+    el("revealBtn").style.display="none";
+    return;
+  }
+  const i = view[vpos], item = Q[i];
+  el("level").textContent = item.level;
+  el("level").className = "badge b-" + item.level.toLowerCase();
+  el("topic").textContent = "· " + item.topic;
+  el("counter").textContent = (vpos+1) + " / " + view.length + (marks[i]?(marks[i]==="got"?"  ✓":"  ★"):"");
+  el("q").textContent = item.q;
+  el("model").innerHTML = item.model;
+  el("strong").innerHTML = item.strong.map(s=>"<li>"+s+"</li>").join("");
+  el("mistakes").innerHTML = item.mistakes.map(s=>"<li>"+s+"</li>").join("");
+  el("answer").classList.remove("show");
+  el("rate").classList.remove("show");
+  el("revealBtn").style.display = "";
+}
+function reveal(){
+  if(!view.length) return;
+  el("answer").classList.add("show");
+  el("rate").classList.add("show");
+  el("revealBtn").style.display = "none";
+}
+function next(){ if(view.length){ vpos=(vpos+1)%view.length; show(); } }
+function prev(){ if(view.length){ vpos=(vpos-1+view.length)%view.length; show(); } }
+function mark(r){
+  if(!view.length) return;
+  marks[view[vpos]] = r;
+  localStorage.setItem(LS, JSON.stringify(marks));
+  show();
+  setTimeout(next, 220);
+}
+
+el("revealBtn").onclick = reveal;
+el("next").onclick = next;
+el("prev").onclick = prev;
+el("restart").onclick = ()=>{ vpos=0; show(); };
+el("shuffle").onclick = ()=>{
+  for(let a=view.length-1;a>0;a--){ const b=Math.floor(Math.random()*(a+1)); [view[a],view[b]]=[view[b],view[a]]; }
+  vpos=0; show();
+};
+
+document.querySelectorAll(".chip").forEach(c=>{
+  c.onclick=()=>{
+    document.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));
+    c.classList.add("on"); filter=c.dataset.f; buildView(); show();
+  };
+});
+document.querySelectorAll(".rate button").forEach(b=>{ b.onclick=()=>mark(b.dataset.r); });
+document.addEventListener("keydown",e=>{
+  if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA") return;
+  if(e.code==="Space"){ e.preventDefault(); reveal(); }
+  else if(e.key==="ArrowRight") next();
+  else if(e.key==="ArrowLeft") prev();
+  else if(e.key==="1") mark("got");
+  else if(e.key==="2") mark("review");
+});
+
+buildView();
+show();
+</script>
+</body>
+</html>
