@@ -91,7 +91,8 @@
 <div class="layout">
   <nav class="toc">
     <strong style="font-size:15px;">📘 Study Guide</strong>
-    <a href="#mock" style="color:#7ee6c0;font-weight:600;margin-top:8px;">🎤 Mock interview (practice)</a>
+    <a href="#how-to-read" style="color:#7ee6c0;font-weight:600;margin-top:8px;">📖 How to read the code</a>
+    <a href="#mock" style="color:#7ee6c0;font-weight:600;">🎤 Mock interview (practice)</a>
     <h2>Understand it</h2>
     <a href="#pitch">The pitch</a>
     <a href="#arch">Architecture + diagrams</a>
@@ -125,6 +126,21 @@
       </div>
       <p class="muted" style="margin-top:14px;font-size:13px;">✔ Fully offline — diagrams render from a bundled local copy of Mermaid (<code>vendor/mermaid.min.js</code>), no internet needed. Just keep the <code>vendor/</code> folder next to this file.</p>
     </header>
+
+    <!-- ===================== HOW TO READ ===================== -->
+    <section id="how-to-read">
+      <div class="card" style="border-color:var(--green);background:linear-gradient(135deg,rgba(52,211,153,.10),rgba(91,140,255,.06));">
+        <h2 style="margin-top:0;font-size:20px;">📖 How to read this codebase — start here</h2>
+        <p>New to the project and don't know where to begin? Follow this exact order. The trick is to read the <strong>map</strong> (this guide) and the <strong>territory</strong> (the real code) <em>together</em> — map alone stays abstract, code alone is overwhelming.</p>
+        <ol>
+          <li><strong>Get the map (~15 min).</strong> Read <a href="#observe">§3 (observe + reading order)</a>, <a href="#flows">§4 (the 5 flows)</a>, and <a href="#concept-map">§5 (concept → code)</a>. Now you know what the system does and where each piece lives.</li>
+          <li><strong>Open the 10 golden-path files in order</strong> (the table in §3) — read each real file while this guide tells you <em>what to notice</em>. Go ingestion → search → chat.</li>
+          <li><strong>Trace ONE flow end-to-end in the actual code.</strong> Ingestion is the richest: <code>repositories/service.py → tasks/ingest.py → infrastructure/{git, parsers, embeddings, qdrant}</code>. Once one flow clicks, the rest follow the same shape.</li>
+          <li><strong>Go deep on any single file</strong> with <code>Ai_coding_agent.md</code> (the exhaustive file-by-file guide) whenever you want more detail than this page gives.</li>
+        </ol>
+        <p class="muted" style="margin-bottom:0;">Then practice recall in the 🎤 mock below — reading builds recognition, but the interview needs production.</p>
+      </div>
+    </section>
 
     <!-- ===================== MOCK INTERVIEW ===================== -->
     <section id="mock">
