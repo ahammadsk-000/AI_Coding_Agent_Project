@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Coding Agent — Interview Study Guide</title>
+<style>
+  :root {
+    --bg: #0b0f16; --bg2: #111827; --card: #131a26; --border: #223049;
+    --fg: #d7e0ee; --muted: #8ea3c0; --accent: #5b8cff; --accent2: #7c5cff;
+    --green: #34d399; --amber: #fbbf24; --red: #fb7185; --code: #0e1420;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.88em; }
+  :not(pre) > code { background: #1b2436; padding: 1px 6px; border-radius: 5px; color: #b9c7e6; }
+  pre {
+    background: var(--code); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+  }
+  pre code { color: #cbd5f5; }
+
+  .layout { display: grid; grid-template-columns: 280px 1fr; max-width: 1280px; margin: 0 auto; }
+  nav.toc {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    padding: 24px 16px; border-right: 1px solid var(--border); background: var(--bg2);
+  }
+  nav.toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 18px 0 6px; }
+  nav.toc a { display: block; color: var(--muted); padding: 4px 8px; border-radius: 6px; font-size: 14px; }
+  nav.toc a:hover { background: #1a2334; color: var(--fg); text-decoration: none; }
+  main { padding: 32px 40px 120px; min-width: 0; }
+
+  header.hero {
+    background: linear-gradient(135deg, rgba(91,140,255,.14), rgba(124,92,255,.10));
+    border: 1px solid var(--border); border-radius: 16px; padding: 28px 30px; margin-bottom: 28px;
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -.02em; }
+  header.hero p { margin: 0; color: var(--muted); }
+  .pill { display: inline-block; background: #1b2436; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 999px; padding: 2px 10px; font-size: 12px; margin: 4px 6px 0 0; }
+
+  section { margin: 40px 0; scroll-margin-top: 16px; }
+  h2.sec { font-size: 23px; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 16px; }
+  h3 { font-size: 18px; margin-top: 26px; color: #e8eefc; }
+  h2.sec .num { color: var(--accent); margin-right: 8px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #16203180; color: var(--muted); font-weight: 600; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .mermaid { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin: 16px 0; text-align: center; overflow-x: auto; }
+
+  details.qa {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    margin: 10px 0; padding: 0 16px; transition: border-color .15s;
+  }
+  details.qa[open] { border-color: var(--accent); }
+  details.qa summary {
+    cursor: pointer; padding: 13px 0; font-weight: 600; color: #e8eefc; list-style: none;
+    display: flex; gap: 10px; align-items: baseline;
+  }
+  details.qa summary::-webkit-details-marker { display: none; }
+  details.qa summary::before { content: "▸"; color: var(--accent); font-size: 13px; transition: transform .15s; }
+  details.qa[open] summary::before { transform: rotate(90deg); }
+  details.qa .a { padding: 0 0 15px 24px; color: var(--fg); border-top: 1px dashed var(--border); padding-top: 12px; margin-top: 2px; }
+  details.qa .a p:first-child { margin-top: 0; }
+  .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; margin-left: auto; align-self: center; white-space: nowrap; }
+  .tag.snr { background: rgba(124,92,255,.18); color: #b7a6ff; }
+  .tag.prac { background: rgba(52,211,153,.16); color: #7ee6c0; }
+
+  blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 2px 16px; color: #c3d0ea; background: #131b2a80; border-radius: 0 8px 8px 0; }
+  .muted { color: var(--muted); }
+  .kbd { background:#1b2436; border:1px solid var(--border); border-bottom-width:2px; border-radius:5px; padding:0 6px; font-size:12px; }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 24px 18px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <strong style="font-size:15px;">📘 Study Guide</strong>
+    <h2>Understand it</h2>
+    <a href="#pitch">The pitch</a>
+    <a href="#arch">Architecture + diagrams</a>
+    <a href="#observe">How to learn it (from zero)</a>
+    <a href="#flows">The 5 flows</a>
+    <a href="#concept-map">Concept → code map</a>
+    <a href="#numbers">Numbers to memorize</a>
+    <h2>Q&amp;A bank</h2>
+    <a href="#q-open">Opener</a>
+    <a href="#q-arch">Architecture / design</a>
+    <a href="#q-rag">RAG &amp; retrieval</a>
+    <a href="#q-emb">Embeddings / vectors</a>
+    <a href="#q-llm">LLM &amp; agents</a>
+    <a href="#q-agentic">Agentic AI</a>
+    <a href="#q-eval">Eval / MCP</a>
+    <a href="#q-infra">Streaming / data / security</a>
+    <a href="#q-deploy">Deploy / ops</a>
+    <h2>Hands-on</h2>
+    <a href="#practical">Practical questions</a>
+    <a href="#tips">Final tips</a>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <h1>AI Coding Agent — Interview Study Guide</h1>
+      <p>Everything you need to explain this project end-to-end and answer conceptual + practical interview questions. Click any question to reveal the model answer.</p>
+      <div>
+        <span class="pill">Agentic RAG</span><span class="pill">FastAPI + React</span>
+        <span class="pill">Postgres · Qdrant · Redis</span><span class="pill">Multi-agent + Reflexion</span>
+        <span class="pill">MCP</span><span class="pill">Production deploy</span>
+      </div>
+      <p class="muted" style="margin-top:14px;font-size:13px;">✔ Fully offline — diagrams render from a bundled local copy of Mermaid (<code>vendor/mermaid.min.js</code>), no internet needed. Just keep the <code>vendor/</code> folder next to this file.</p>
+    </header>
+
+    <!-- ===================== UNDERSTAND ===================== -->
+    <section id="pitch">
+      <h2 class="sec"><span class="num">1</span>The 30-second pitch</h2>
+      <blockquote>A self-hostable <strong>agentic RAG platform over your codebase</strong>: point it at a git repo, and it clones + indexes the code with tree-sitter + embeddings, then lets you <strong>search</strong> (hybrid retrieval), <strong>chat</strong> (RAG + tool-using agent), run a <strong>multi-agent</strong> research/audit pipeline, and open GitHub PRs. Async <strong>FastAPI + SQLAlchemy 2.0</strong> backend, <strong>React/Vite</strong> frontend, <strong>Postgres + Qdrant + Redis</strong>, with <strong>pluggable LLM</strong> (Ollama/OpenAI/Groq) and <strong>embeddings</strong> (local/Jina/OpenAI). Clean Architecture + DDD; the agent loop, hybrid-search fusion, and provider abstractions are hand-written (no LangChain).</blockquote>
+      <div class="card">
+        <strong>What I built vs. glued:</strong> hand-wrote the agent loop, tool dispatch, RRF fusion, AST-aware chunker, multi-agent pipeline + critic/Reflexion, RAG-eval harness, MCP server, and provider abstractions. Glued in Postgres/Qdrant/Redis and the LLM/embedding HTTP APIs.
+      </div>
+    </section>
+
+    <section id="arch">
+      <h2 class="sec"><span class="num">2</span>Architecture + diagrams</h2>
+
+      <h3>System context (the one-slide view)</h3>
+      <pre class="mermaid">
+flowchart LR
+    user(["Developer / User"])
+    subgraph CLIENT["Client"]
+      web["React SPA (Vercel)"]
+    end
+    subgraph SERVER["Server"]
+      api["FastAPI Backend (Render)"]
+    end
+    subgraph STORES["Data Stores"]
+      pg[("PostgreSQL — Neon")]
+      qd[("Qdrant — Vectors")]
+      rd[("Redis — Upstash")]
+    end
+    subgraph EXT["External AI + Services"]
+      llm["LLM — Groq"]
+      emb["Embeddings — Jina"]
+      gh["GitHub API"]
+      ws["Web Search"]
+    end
+    user --> web
+    web -->|"REST + WebSocket + SSE"| api
+    api --> pg
+    api --> qd
+    api --> rd
+    api --> llm
+    api --> emb
+    api --> gh
+    api --> ws
+      </pre>
+
+      <h3>Layered backend (Clean Architecture + DDD)</h3>
+      <pre class="mermaid">
+flowchart TB
+    subgraph FE["FRONTEND — React + Vite"]
+      client["Pages · api.ts client · Zustand · React Query"]
+    end
+    subgraph API["API LAYER — api/v1 routers (thin)"]
+      routers["auth · users · repositories · search · chat · memory · sandbox · github · agents · insights · audit · eval"]
+    end
+    subgraph DOM["DOMAIN — services (business logic)"]
+      dom["repositories/ingest · search (hybrid RAG) · chat (agent loop) · agents · insights · audit · eval · memory · github"]
+    end
+    subgraph INFRA["INFRASTRUCTURE — adapters (ports)"]
+      infra["LLM · Embeddings · Qdrant · tree-sitter · git · GitHub · Redis · websearch · sandbox"]
+    end
+    subgraph CORE["CORE — config · security · logging · metrics · cost"]
+      core["cross-cutting"]
+    end
+    client -->|"HTTPS / WSS / SSE"| routers --> dom --> infra
+    dom --> pgx[("Postgres / Qdrant / Redis")]
+    API -.uses.-> core
+    DOM -.uses.-> core
+      </pre>
+      <blockquote><strong>Golden rule:</strong> <code>models</code> = DB shape · <code>repository</code> = only DB access · <code>schemas</code> = Pydantic API boundary · <code>service</code> = the use case. Infrastructure hides every external system behind a Protocol. Dependencies point inward; services never import FastAPI.</blockquote>
+
+      <h3>RAG chat — the agent loop</h3>
+      <pre class="mermaid">
+sequenceDiagram
+    actor U as User
+    participant A as API WS
+    participant C as ChatService
+    participant S as SearchService
+    participant Q as Qdrant
+    participant P as Postgres
+    participant L as LLM
+    U->>A: question (WebSocket)
+    A->>C: send_message_streaming
+    C->>S: hybrid search
+    S->>Q: dense kNN (vectors)
+    S->>P: sparse full-text (BM25)
+    S->>S: RRF fusion + cross-encoder rerank
+    S-->>C: top code chunks
+    C->>L: system prompt + RAG context + tools
+    L-->>C: stream tokens / tool calls
+    opt tool call
+      C->>C: run search_code / read_file / web_search
+      C->>L: feed result back (loop ≤ 5)
+    end
+    C-->>U: stream tokens + citations
+    C->>P: persist messages
+      </pre>
+
+      <h3>Multi-agent pipeline (planner → research → synth → critic → reflexion)</h3>
+      <pre class="mermaid">
+flowchart LR
+    task(["Task"]) --> plan["Planner"]
+    plan --> r1["Researcher 1"]
+    plan --> r2["Researcher 2"]
+    plan --> r3["Researcher 3"]
+    r1 --> syn["Synthesizer"]
+    r2 --> syn
+    r3 --> syn
+    syn --> crit{"Critic verdict"}
+    crit -->|"accurate"| done(["Final answer"])
+    crit -->|"issues"| refine["Reflexion: revise"]
+    refine --> recheck["Re-review"] --> done
+    idx[("Code index")]
+    r1 -.RAG.-> idx
+    r2 -.-> idx
+    r3 -.-> idx
+      </pre>
+
+      <h3>Deployment (free-tier managed split)</h3>
+      <pre class="mermaid">
+flowchart TB
+    user(["User"]) --> spa["React SPA — Vercel"]
+    spa -->|"REST + WSS + SSE"| be["FastAPI — Render (+ inline ingest)"]
+    be --> neon[("Neon — Postgres")]
+    be --> up[("Upstash — Redis")]
+    be --> qc[("Qdrant Cloud")]
+    be --> groq["Groq — LLM"]
+    be --> jina["Jina — Embeddings"]
+    be --> gh["GitHub API"]
+      </pre>
+    </section>
+
+    <section id="observe">
+      <h2 class="sec"><span class="num">3</span>How to learn it from zero</h2>
+      <p><strong>Step 1 — Observe before you read.</strong> Run the app and do all 7 flows in order, watching what changes:</p>
+      <ol>
+        <li><strong>Log in</strong> → JWT stored, SPA calls <code>/users/me</code>.</li>
+        <li><strong>Add + ingest a repo</strong> → watch the live progress bar (that's SSE).</li>
+        <li><strong>Open the repo</strong> → metrics dashboard, insights (diagram/code-map/docs), audit.</li>
+        <li><strong>Search</strong> a concept → ranked results with scores.</li>
+        <li><strong>Chat</strong> → tokens stream, citations appear.</li>
+        <li><strong>Agents</strong> → Planner → Researchers → Synthesizer → Critic stream live.</li>
+        <li><strong>RAG Eval</strong> → faithfulness / answer-relevance / context-precision scores.</li>
+      </ol>
+      <p><strong>Step 2 — Read the code in the "golden path" order</strong> (the order data flows):</p>
+      <table>
+        <tr><th>#</th><th>File</th><th>What to notice</th></tr>
+        <tr><td>1</td><td><code>app/main.py</code></td><td>App factory, middleware order, lifespan, <code>/health</code>, <code>/metrics</code></td></tr>
+        <tr><td>2</td><td><code>core/config.py</code></td><td>The settings contract — every env var</td></tr>
+        <tr><td>3</td><td><code>api/router.py</code></td><td>Every route group — the table of contents</td></tr>
+        <tr><td>4</td><td><code>domain/repositories/service.py</code></td><td><code>enqueue_ingest()</code> — Celery task or inline subprocess</td></tr>
+        <tr><td>5</td><td><code>tasks/ingest.py</code></td><td>clone → parse → chunk → embed → index → publish</td></tr>
+        <tr><td>6</td><td><code>domain/search/service.py</code></td><td>dense + sparse + <strong>RRF</strong> + rerank — the heart of RAG</td></tr>
+        <tr><td>7</td><td><code>domain/chat/service.py</code></td><td>the agent loop (<code>send_message_streaming</code>)</td></tr>
+        <tr><td>8</td><td><code>domain/chat/tools.py</code></td><td>the 4 tools + dispatch</td></tr>
+        <tr><td>9</td><td><code>domain/agents/service.py</code></td><td>multi-agent pipeline + Reflexion</td></tr>
+        <tr><td>10</td><td><code>web/src/App.tsx → lib/api.ts → routes/chat.tsx</code></td><td>how the SPA talks to the API</td></tr>
+      </table>
+    </section>
+
+    <section id="flows">
+      <h2 class="sec"><span class="num">4</span>The 5 flows to narrate</h2>
+      <div class="card"><strong>A. Ingestion:</strong> <code>POST /repositories/{id}/ingest</code> → create job → clone (shallow, capped) → tree-sitter parse + symbols → AST-aware chunking (tiktoken budget) → embed (batched) → upsert to Qdrant (1 collection/repo) → store in Postgres → publish progress to Redis → SSE to UI → status <code>ready</code>.</div>
+      <div class="card"><strong>B. Search/RAG:</strong> embed query → Qdrant kNN (dense) <em>in parallel with</em> Postgres <code>ts_rank_cd</code> (sparse) → <strong>RRF fuse (k=60)</strong> → optional cross-encoder rerank → filter padding → top-k.</div>
+      <div class="card"><strong>C. Chat:</strong> WS → persist message → (skip if chit-chat) hybrid search → system prompt with repo inventory + RAG context (~1500 tok) + memories → stream LLM → execute tool calls (deduped, capped 2/round & 3/turn) → loop ≤5 → stream tokens + citations.</div>
+      <div class="card"><strong>D. Multi-agent:</strong> Planner → per-sub-question Researchers (grounded) → Synthesizer → Critic (verdict) → Reflexion revises once on "issues" → re-review. Each stage an SSE event.</div>
+      <div class="card"><strong>E. RAG eval:</strong> run real retrieval + grounded generation → LLM-as-judge scores faithfulness / answer-relevance / context-precision. Reference-free.</div>
+    </section>
+
+    <section id="concept-map">
+      <h2 class="sec"><span class="num">5</span>Concept → where it lives in code</h2>
+      <table>
+        <tr><th>Concept</th><th>File</th><th>How</th></tr>
+        <tr><td>Agent loop (ReAct)</td><td><code>chat/service.py</code></td><td>LLM → tool_calls → execute → feed back → repeat ≤5</td></tr>
+        <tr><td>Tool calling</td><td><code>chat/tools.py</code></td><td>JSON-schema tools; deduped + capped</td></tr>
+        <tr><td>Multi-agent + Reflexion</td><td><code>agents/service.py</code></td><td>planner/researcher/synth/critic + revise-on-issues</td></tr>
+        <tr><td>Dense retrieval</td><td><code>search/service.py:_dense_search</code></td><td>embed → Qdrant HNSW cosine</td></tr>
+        <tr><td>Sparse retrieval</td><td><code>search/service.py:_lexical_search</code></td><td>Postgres <code>ts_rank_cd</code> + GIN</td></tr>
+        <tr><td>Fusion</td><td><code>search/service.py:_rrf_fuse</code></td><td>RRF, k=60</td></tr>
+        <tr><td>Rerank</td><td><code>embeddings/reranker.py</code></td><td>cross-encoder ms-marco-MiniLM</td></tr>
+        <tr><td>AST chunking</td><td><code>parsers/chunker.py</code></td><td>symbol-sized + line-window, tiktoken</td></tr>
+        <tr><td>Context packing</td><td><code>search/context.py:pack_context</code></td><td>merge overlaps, token-budget</td></tr>
+        <tr><td>Pluggable LLM</td><td><code>llm/base.py</code> + <code>factory.py</code></td><td>Protocol + factory; per-conversation model</td></tr>
+        <tr><td>RAG eval</td><td><code>eval/service.py</code></td><td>LLM-as-judge triad</td></tr>
+        <tr><td>MCP server</td><td><code>app/mcp_server.py</code></td><td>FastMCP over the REST API</td></tr>
+        <tr><td>Memory</td><td><code>memory/service.py</code></td><td>remember/recall/forget (Qdrant + Postgres)</td></tr>
+        <tr><td>Auth</td><td><code>core/security.py</code></td><td>Argon2 + JWT + refresh rotation</td></tr>
+        <tr><td>Rate limit</td><td><code>middleware/rate_limit.py</code></td><td>Redis sliding window, fail-open</td></tr>
+        <tr><td>Sandbox</td><td><code>sandbox/service.py</code></td><td>network=none, cap_drop=ALL, read-only, caps</td></tr>
+      </table>
+    </section>
+
+    <section id="numbers">
+      <h2 class="sec"><span class="num">6</span>Numbers to memorize</h2>
+      <ul>
+        <li><strong>RRF k = 60</strong> (fusion constant)</li>
+        <li><strong>~1500 tokens</strong> RAG context budget</li>
+        <li><strong>≤ 5 rounds</strong> agent tool loop; <strong>2/round, 3/turn</strong> tool-call caps; <strong>~3000 chars</strong> tool-result cap</li>
+        <li><strong>384-dim</strong> bge-small-en-v1.5 (local embeddings); cross-encoder <strong>ms-marco-MiniLM-L-6-v2</strong></li>
+        <li><strong>Qdrant HNSW, cosine</strong>, one collection per repo</li>
+        <li><strong>6000 TPM</strong> Groq free-tier limit (why the caps exist)</li>
+      </ul>
+    </section>
+
+    <!-- ===================== Q&A ===================== -->
+    <section id="q-open">
+      <h2 class="sec"><span class="num">7</span>Q&amp;A — the opener</h2>
+
+      <details class="qa"><summary>Tell me about your project.</summary><div class="a">
+      <p>See the 30-second pitch above. Structure: <em>what it is</em> (agentic RAG over your code) → <em>the flows</em> (ingest, search, chat, multi-agent, PRs) → <em>the stack</em> (FastAPI async, Postgres/Qdrant/Redis, pluggable LLM) → <em>what I built myself</em> (agent loop, RRF, chunker, multi-agent, provider abstractions).</p>
+      </div></details>
+
+      <details class="qa"><summary>What did you build vs. glue together?</summary><div class="a">
+      <p>Hand-wrote the agent loop, tool dispatch, hybrid-search fusion (RRF), AST-aware chunker, the multi-agent pipeline with critic/Reflexion, the RAG-eval harness, the MCP server, and the LLM/embedding provider abstractions. Glued in Postgres/Qdrant/Redis and the LLM/embedding HTTP APIs. I deliberately avoided LangChain/CrewAI so I understand the mechanics.</p>
+      </div></details>
+    </section>
+
+    <section id="q-arch">
+      <h2 class="sec"><span class="num">8</span>Q&amp;A — architecture &amp; design</h2>
+
+      <details class="qa"><summary>Why Clean Architecture + DDD here?</summary><div class="a">
+      <p>Testability and swappability. Each bounded context has <code>models</code>/<code>repository</code>/<code>schemas</code>/<code>service</code>; external systems live behind Protocols in <code>infrastructure</code>. I can swap an LLM provider or the vector DB without touching business logic, and unit-test services with fakes.</p>
+      </div></details>
+
+      <details class="qa"><summary>How do the three data stores divide responsibility?</summary><div class="a">
+      <p>Postgres = system of record + <strong>sparse/full-text</strong> search. Qdrant = <strong>dense vectors</strong> (ANN). Redis = ephemeral: cache, rate-limit counters, Celery broker, pub/sub for progress. Truth is never stored in Redis.</p>
+      </div></details>
+
+      <details class="qa"><summary>How would you scale to 10× users? <span class="tag snr">senior</span></summary><div class="a">
+      <p>API is stateless → horizontal scale behind a load balancer (Helm HPA already). Move ingestion fully onto Celery and scale that pool independently. Bottlenecks are LLM/embedding rate limits and ingestion memory → batch embeddings, retry with backoff, per-repo Qdrant collections, token-budgeted context. Next lever: semantic caching of embeddings/searches.</p>
+      </div></details>
+    </section>
+
+    <section id="q-rag">
+      <h2 class="sec"><span class="num">9</span>Q&amp;A — RAG &amp; retrieval</h2>
+
+      <details class="qa"><summary>Why hybrid search instead of pure vector search?</summary><div class="a">
+      <p>Dense captures <em>semantics</em> ("auth flow") but misses <em>exact identifiers</em> (<code>RefreshToken</code>); BM25/full-text nails exact tokens but misses paraphrase. Code search needs both, so I run them in parallel and fuse.</p>
+      </div></details>
+
+      <details class="qa"><summary>What is Reciprocal Rank Fusion and why over score-weighting? <span class="tag snr">senior</span></summary><div class="a">
+      <p>RRF scores each doc as Σ 1/(k + rank) across ranked lists (k=60). It fuses on <strong>rank, not raw scores</strong>, so I don't normalize incomparable cosine vs <code>ts_rank_cd</code> scales. Robust and parameter-light.</p>
+      </div></details>
+
+      <details class="qa"><summary>What's your chunking strategy and why does it matter? <span class="tag snr">senior</span></summary><div class="a">
+      <p><strong>AST-aware</strong> chunking with tree-sitter: chunk on symbol boundaries (functions/classes) so a chunk is a semantically whole unit; split oversized symbols by a token-budgeted line window; gap-fill between symbols. Naive fixed-size chunking splits functions mid-body and wrecks retrieval + grounding.</p>
+      </div></details>
+
+      <details class="qa"><summary>What's re-ranking and when is it worth it?</summary><div class="a">
+      <p>After fusion I optionally run a <strong>cross-encoder</strong> that jointly encodes (query, chunk) for a precise relevance score, then reorder. It's slow (uncacheable, per-candidate) so I apply it to a small top-N pool, not the corpus.</p>
+      </div></details>
+
+      <details class="qa"><summary>RAG vs fine-tuning vs long-context — when each? <span class="tag snr">senior</span></summary><div class="a">
+      <p><strong>RAG</strong> for knowledge that changes / is large / proprietary (my case). <strong>Fine-tuning</strong> to change behavior/format/style, not for facts. <strong>Long-context</strong> when the whole relevant corpus fits and recall beats cost. They compose.</p>
+      </div></details>
+
+      <details class="qa"><summary>How do you keep the prompt from overflowing the context window?</summary><div class="a">
+      <p><code>pack_context</code> groups hits by file, merges overlapping/adjacent line ranges, and greedily packs under a <strong>~1500-token budget</strong> via tiktoken. The context window is a budget you architect.</p>
+      </div></details>
+    </section>
+
+    <section id="q-emb">
+      <h2 class="sec"><span class="num">10</span>Q&amp;A — embeddings &amp; vector search</h2>
+
+      <details class="qa"><summary>What are embeddings and how do you measure similarity?</summary><div class="a">
+      <p>Embeddings map text to vectors where distance ≈ semantic similarity. I use <strong>cosine similarity</strong> (Qdrant, normalized vectors) — angle, ignoring magnitude.</p>
+      </div></details>
+
+      <details class="qa"><summary>How does ANN work / why Qdrant? <span class="tag snr">senior</span></summary><div class="a">
+      <p>Exact kNN is O(N·d) per query — too slow at scale. Qdrant uses <strong>HNSW</strong>, a navigable small-world graph giving approximate nearest neighbors in ~log time, trading a little recall for big speed. One collection per repo, cosine distance, payload indexes for filtering.</p>
+      </div></details>
+
+      <details class="qa"><summary>You switched embedding providers in prod — what broke? <span class="tag snr">senior</span></summary><div class="a">
+      <p>Embedding <strong>dimension</strong> and semantics are provider-specific — vectors aren't comparable across models, so switching means the collection dimension must match; I re-ingest. Also hit <strong>429s</strong> on the hosted API → added retry-with-backoff and batching.</p>
+      </div></details>
+    </section>
+
+    <section id="q-llm">
+      <h2 class="sec"><span class="num">11</span>Q&amp;A — LLM integration &amp; the chat agent</h2>
+
+      <details class="qa"><summary>How is the app model-agnostic?</summary><div class="a">
+      <p>An <code>LLMProvider</code> Protocol (<code>chat</code>, <code>stream</code>, tool support) + a <code>factory</code> that returns Ollama/OpenAI/Groq from config — even per-conversation. Everything depends on the Protocol, not a concrete SDK.</p>
+      </div></details>
+
+      <details class="qa"><summary>How does streaming tool-calling actually work? <span class="tag snr">senior</span></summary><div class="a">
+      <p>I stream the completion; text deltas go to the user, tool-call fragments are reassembled (OpenAI streams arguments in pieces). When the model finishes with <code>tool_calls</code>, I execute, append tool-result messages, and call again — the ReAct loop. No tool calls → done.</p>
+      </div></details>
+
+      <details class="qa"><summary>Same prompt, different answers — why? How do you make judges reproducible?</summary><div class="a">
+      <p>Sampling (<code>temperature</code>/<code>top_p</code>); even at temp 0, server-side batching/float gives slight nondeterminism. For critic/judge calls I use <strong>temperature 0</strong> to minimize variance.</p>
+      </div></details>
+
+      <details class="qa"><summary>How does the agent decide to stop?</summary><div class="a">
+      <p>When the LLM returns no <code>tool_calls</code>, the loop ends. Hard cap at <strong>5 rounds</strong> as a backstop.</p>
+      </div></details>
+
+      <details class="qa"><summary>A model spammed a tool in a loop and blew the token budget — fix? <span class="tag snr">senior</span></summary><div class="a">
+      <p>Real bug I fixed. Now I <strong>de-dup identical tool calls</strong>, cap execution to <strong>2/round &amp; 3/turn</strong> then force a prose answer, cap each tool result to ~3000 chars, and treat rate-limit/413 as terminal with a friendly message. A <code>tool_use_failed</code> retries once <em>without</em> tools. Guardrails against runaway agents are a real production concern.</p>
+      </div></details>
+
+      <details class="qa"><summary>How do you prevent hallucinated file paths / fake code?</summary><div class="a">
+      <p>System prompt forbids inventing paths and requires citing exact <code>file:line</code> from retrieved context; I preload the repo file inventory so it uses real names; and I detect "leaked" tool-call text. Grounding + citations make answers verifiable.</p>
+      </div></details>
+    </section>
+
+    <section id="q-agentic">
+      <h2 class="sec"><span class="num">12</span>Q&amp;A — agentic AI</h2>
+
+      <details class="qa"><summary>Difference between a workflow and an agent? <span class="tag snr">senior</span></summary><div class="a">
+      <p>A <strong>workflow</strong> has fixed, developer-defined control flow; an <strong>agent</strong> lets the LLM decide the next step. My chat is an agent (LLM-driven loop); my multi-agent pipeline is a <strong>structured orchestration</strong> — deterministic stages, each powered by an LLM.</p>
+      </div></details>
+
+      <details class="qa"><summary>Explain your multi-agent pipeline and why a critic.</summary><div class="a">
+      <p>Planner → per-sub-question Researchers (grounded) → Synthesizer → <strong>Critic</strong> that fact-checks the answer against the researchers' findings and returns accurate/issues/uncertain. A single pass can be confidently wrong; an independent critic catches unsupported claims.</p>
+      </div></details>
+
+      <details class="qa"><summary>What is Reflexion and how did you implement it? <span class="tag snr">senior</span></summary><div class="a">
+      <p>Self-correction from feedback: if the critic returns <strong>issues</strong>, feed its critique back to the synthesizer to <strong>revise once</strong>, then <strong>re-review</strong>. Bounded (one iteration) so it can't spin forever.</p>
+      </div></details>
+
+      <details class="qa"><summary>ReAct — what is it?</summary><div class="a">
+      <p>Reason + Act: the model interleaves reasoning with tool actions and observations. My chat loop is exactly this — think, call a tool, read the result, continue.</p>
+      </div></details>
+    </section>
+
+    <section id="q-eval">
+      <h2 class="sec"><span class="num">13</span>Q&amp;A — evaluation &amp; MCP</h2>
+
+      <details class="qa"><summary>How do you know your RAG is any good? <span class="tag snr">senior</span></summary><div class="a">
+      <p>A <strong>RAG-eval harness</strong> (LLM-as-judge) scoring <strong>faithfulness</strong> (grounded?), <strong>answer relevance</strong>, and <strong>context precision</strong> — the RAGAS triad, reference-free (no labels). It runs the real pipeline, catching retrieval <em>and</em> generation regressions.</p>
+      </div></details>
+
+      <details class="qa"><summary>Weakness of LLM-as-judge and how do you mitigate it?</summary><div class="a">
+      <p>Judges are biased/noisy (verbosity, position, self-preference). Mitigate with temperature 0, focused single-metric prompts, and a forced <code>SCORE:</code> format I parse. For rigor, add human-labeled goldens and correlate.</p>
+      </div></details>
+
+      <details class="qa"><summary>What is MCP and what did you build? <span class="tag snr">senior</span></summary><div class="a">
+      <p>MCP is an open standard letting any AI host (Claude Desktop, IDEs) connect to tools/data uniformly — "USB-C for AI tools." I built a <strong>FastMCP server</strong> exposing <code>search_code</code>/<code>read_file</code>/<code>list_repositories</code> over stdio; a thin client on my REST API, so Claude Desktop can search my indexed repos.</p>
+      </div></details>
+    </section>
+
+    <section id="q-infra">
+      <h2 class="sec"><span class="num">14</span>Q&amp;A — streaming, data &amp; security</h2>
+
+      <details class="qa"><summary>Why WebSocket for chat but SSE for ingestion/agents? <span class="tag snr">senior</span></summary><div class="a">
+      <p>Chat is <strong>bidirectional</strong>/interactive (send, stream tokens, stop) → WebSocket. Ingest/agents/audit are <strong>server→client only</strong> → SSE (simpler, plain HTTP, auto-reconnect). I use a <code>fetch</code>-based SSE reader so I can send the <code>Authorization</code> header (browser <code>EventSource</code> can't).</p>
+      </div></details>
+
+      <details class="qa"><summary>A gotcha you hit with SSE? <span class="tag snr">senior</span></summary><div class="a">
+      <p>SSE showed nothing. Two causes: (1) the endpoint used the request-scoped DB session, torn down before the stream body runs → I open a <strong>fresh session inside the generator</strong>; (2) my parser split on <code>\n\n</code> but the server emitted <code>\r\n\r\n</code> → I normalize CRLF.</p>
+      </div></details>
+
+      <details class="qa"><summary>Why async SQLAlchemy 2.0?</summary><div class="a">
+      <p>Workload is I/O-bound (DB + LLM + vector calls); async handles many concurrent requests without thread-per-request overhead. Typed <code>Mapped[...]</code> models are clean and mypy-friendly.</p>
+      </div></details>
+
+      <details class="qa"><summary>How does Postgres full-text search work here?</summary><div class="a">
+      <p>A generated <strong>STORED <code>content_tsv</code></strong> column with a <strong>GIN index</strong> on <code>code_chunks</code>; queries use <code>plainto_tsquery</code> + <code>ts_rank_cd</code>. <code>plainto_tsquery</code> is forgiving of raw user text.</p>
+      </div></details>
+
+      <details class="qa"><summary>A production DB gotcha you solved? <span class="tag snr">senior</span></summary><div class="a">
+      <p>On Neon, <strong>asyncpg rejects the <code>sslmode</code> query param</strong> libpq uses — I strip <code>sslmode</code>/<code>channel_binding</code> and pass <code>ssl=require</code> via <code>connect_args</code>.</p>
+      </div></details>
+
+      <details class="qa"><summary>Explain your auth &amp; how the sandbox is hardened.</summary><div class="a">
+      <p>Argon2id hashing; short-lived JWT access + opaque refresh tokens with <strong>single-use rotation</strong>; RBAC guards; frontend refreshes once on 401. Sandbox: disposable Docker with <code>network_mode=none</code>, <code>cap_drop=ALL</code>, <code>no-new-privileges</code>, read-only root + tmpfs, non-root, memory/CPU/pids caps, hard timeout, plus a command-policy classifier. Disabled on managed cloud (no Docker socket) behind a flag.</p>
+      </div></details>
+
+      <details class="qa"><summary>Prompt injection — do you handle it?</summary><div class="a">
+      <p>Mitigations: read-only tools, grounding + citation requirements, chit-chat/leaked-tool-call detection, never executing model output directly (writes gated). Fuller answer: treat retrieved content as untrusted, separate instructions from data, validate outputs.</p>
+      </div></details>
+    </section>
+
+    <section id="q-deploy">
+      <h2 class="sec"><span class="num">15</span>Q&amp;A — deployment &amp; ops</h2>
+
+      <details class="qa"><summary>How is it deployed &amp; what did you trade off on free tier? <span class="tag snr">senior</span></summary><div class="a">
+      <p>Three ways: docker-compose (9 services) local, Helm (HPA/PDB/NetworkPolicy) for K8s, and a free-tier split (Render/Vercel/Neon/Upstash/Qdrant/Groq/Jina). Trade-offs: no Celery worker → <strong>inline subprocess ingestion</strong>; no Docker socket → <strong>sandbox off</strong> (flag); Groq's <strong>6000 TPM</strong> free limit forced the tool-call/token caps. Graceful degradation, not feature removal.</p>
+      </div></details>
+
+      <details class="qa"><summary>How do you observe the system &amp; track cost?</summary><div class="a">
+      <p>Prometheus metrics (<code>aca_*</code>: HTTP, LLM calls/tokens/latency, tools, search, ingest), structlog with a <code>request_id</code> per request, Grafana. Cost: <code>core/cost.py</code> counts tokens with tiktoken × a per-1M-token price table (local = free) → a Prometheus counter + an estimated-token meter on the Agents page.</p>
+      </div></details>
+
+      <details class="qa"><summary>Where does it break under load? <span class="tag snr">senior</span></summary><div class="a">
+      <p>LLM/embedding rate limits first; then ingestion memory; then Postgres FTS on huge repos. Mitigations: batching, backoff, per-repo collections, token budgets. Retrieval quality is the whole game — my eval harness targets exactly that.</p>
+      </div></details>
+    </section>
+
+    <!-- ===================== PRACTICAL ===================== -->
+    <section id="practical">
+      <h2 class="sec"><span class="num">16</span>Practical / hands-on questions</h2>
+      <p class="muted">These are the "show me you can build it" questions — mini-coding, scenarios, and debugging grounded in this project.</p>
+
+      <details class="qa"><summary>Implement Reciprocal Rank Fusion for two ranked lists. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>def rrf_fuse(rankings, k=60):
+    scores, seen = {}, {}
+    for ranking in rankings:              # each = ordered list of items
+        for rank, item in enumerate(ranking):
+            scores[item.id] = scores.get(item.id, 0) + 1 / (k + rank + 1)
+            seen.setdefault(item.id, item)
+    return sorted((seen[i] for i in scores),
+                  key=lambda it: scores[it.id], reverse=True)</code></pre>
+      <p>Key point: fuse on <em>rank</em>, not raw scores, so incomparable score scales don't need normalization.</p>
+      </div></details>
+
+      <details class="qa"><summary>Walk me through adding a new tool to the chat agent. <span class="tag prac">practical</span></summary><div class="a">
+      <p>Three steps in <code>chat/tools.py</code>: (1) add a <code>ToolDef</code> with a JSON-schema (name, description, parameters); (2) write an async handler <code>_handle_x(user, args, session) -&gt; (result, summary, citations)</code>; (3) register it in the <code>_HANDLERS</code> dict. The agent loop picks it up automatically. Keep it read-only; coerce arg types defensively (models sometimes send numbers as strings — I use <code>["integer","string"]</code> in the schema).</p>
+      </div></details>
+
+      <details class="qa"><summary>The SSE stream shows nothing. Debug it. <span class="tag prac">practical</span></summary><div class="a">
+      <p>Checklist I actually used: (1) Is the endpoint using the <strong>request-scoped DB session</strong>? FastAPI tears it down before the streaming generator runs → open a fresh <code>session_factory()</code> session <em>inside</em> the generator. (2) <strong>Line-ending mismatch</strong>: parser splits on <code>\n\n</code> but <code>sse_starlette</code> emits <code>\r\n\r\n</code> → normalize CRLF. (3) Proxy buffering (disable with <code>X-Accel-Buffering: no</code>). (4) CORS/auth on the GET. (5) Is the generator actually yielding, or erroring before first yield?</p>
+      </div></details>
+
+      <details class="qa"><summary>Write a token-budgeted context packer. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>def pack_context(hits, max_tokens, count):
+    out, used = [], 0
+    for h in hits:                        # already ranked best-first
+        t = count(h.content)
+        if used + t &gt; max_tokens:
+            break                         # greedy: stop at the budget
+        out.append(h); used += t
+    return out, used</code></pre>
+      <p>Refinements in the real code: group by file and merge overlapping/adjacent line ranges before counting, so you don't waste budget on duplicate lines.</p>
+      </div></details>
+
+      <details class="qa"><summary>Retrieval returns irrelevant chunks on a small repo. Why, and fix? <span class="tag prac">practical</span></summary><div class="a">
+      <p>On a tiny corpus, dense kNN always returns <em>something</em> even if cosine is low ("padding"). Fix: after fusion, drop hits that are dense-only <em>and</em> below a cosine floor (I use ~0.55), keep anything that also matched lexically or, if reranked, above the cross-encoder floor. That's the <code>_filter_padding</code> step.</p>
+      </div></details>
+
+      <details class="qa"><summary>Add caching to search — where and how? <span class="tag prac">practical</span></summary><div class="a">
+      <p>Two layers: (1) <strong>embedding cache</strong> — hash the query text → cache the vector in Redis (embeddings are deterministic, huge win). (2) <strong>result cache</strong> — key on <code>(normalized_query, repo_ids, mode, k)</code> with a short TTL. Invalidation: bump a per-repo version on re-ingest and include it in the key, so a re-indexed repo misses stale results.</p>
+      </div></details>
+
+      <details class="qa"><summary>Scale ingestion for a 100k-file repo. <span class="tag prac">practical</span></summary><div class="a">
+      <p>Stream, don't load: walk files lazily; filter by language/size/ignored dirs early; <strong>batch embeddings</strong> (256) and upserts; commit chunks in batches to bound memory; parallelize across files with a bounded worker pool; skip binaries/vendored dirs; cap per-file chunk count. Publish progress so it's observable. On the free tier, the inline subprocess gets its own engine/loop so it doesn't exhaust the API pool.</p>
+      </div></details>
+
+      <details class="qa"><summary>Write a judge prompt for faithfulness + parse it. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>SYS = ("Judge FAITHFULNESS. Given CONTEXT and ANSWER, is every claim "
+       "supported by the context? Reply exactly one line "
+       "'SCORE: &lt;0.0-1.0&gt;' then one sentence of justification.")
+
+import re
+def parse_score(text):
+    m = re.search(r"score\s*[:=]?\s*(\d(?:\.\d+)?)", text, re.I)
+    return max(0.0, min(1.0, float(m.group(1)))) if m else 0.0</code></pre>
+      <p>Use temperature 0. Forcing a machine-parseable <code>SCORE:</code> line is what makes LLM-as-judge usable programmatically.</p>
+      </div></details>
+
+      <details class="qa"><summary>How would you migrate embedding providers safely? <span class="tag prac">practical</span></summary><div class="a">
+      <p>New provider = new dimension/semantics → old vectors are useless. Plan: (1) stand up the new provider behind the same Protocol; (2) create <em>new</em> Qdrant collections at the new dimension (don't mix); (3) re-embed + re-ingest per repo (background); (4) flip search to the new collections; (5) delete old. Blue/green by collection name avoids downtime.</p>
+      </div></details>
+
+      <details class="qa"><summary>Design per-user rate limiting with Redis. <span class="tag prac">practical</span></summary><div class="a">
+      <p>Sliding-window counter keyed by <code>(subject, route_group, window)</code> where subject = user id (authed) or IP (anon). <code>INCR</code> the key, set a 60s TTL on first hit, reject when it exceeds the group's limit. Critically, <strong>fail open</strong> — if Redis is unreachable, allow the request (availability &gt; a perfect limit for a non-critical control).</p>
+      </div></details>
+
+      <details class="qa"><summary>Add a new "Verifier" agent to the multi-agent pipeline. <span class="tag prac">practical</span></summary><div class="a">
+      <p>In <code>agents/service.py</code>: add a <code>_verify()</code> method (an LLM call with its own system prompt + the synthesized answer), then insert it into both <code>run()</code> and <code>run_stream()</code> after the critic; in the streaming version <code>yield ("verify", {...})</code> so the SSE frontend shows a new stage. Guard the call so a failure degrades to a partial result. The frontend just needs to handle the new event type.</p>
+      </div></details>
+
+      <details class="qa"><summary>Write the Postgres full-text query for code chunks. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>SELECT cc.id, rf.path,
+       ts_rank_cd(cc.content_tsv, plainto_tsquery('english', :q)) AS rank
+FROM code_chunks cc
+JOIN repository_files rf ON rf.id = cc.file_id
+WHERE cc.repository_id = ANY(:repo_ids)
+  AND cc.content_tsv @@ plainto_tsquery('english', :q)
+ORDER BY rank DESC
+LIMIT :k;</code></pre>
+      <p><code>content_tsv</code> is a generated STORED column with a GIN index; <code>plainto_tsquery</code> avoids syntax errors on raw user text.</p>
+      </div></details>
+
+      <details class="qa"><summary>Handle a 429 / rate limit from the LLM gracefully. <span class="tag prac">practical</span></summary><div class="a">
+      <p>Distinguish error types: a <strong>tool_use_failed</strong> → retry once <em>without</em> tools. A <strong>rate-limit / request-too-large (413/429)</strong> → don't retry the same oversized request; surface a friendly message ("hit the free-tier token limit, try a shorter question or wait a minute"). Proactively, cap tool calls and tool-result sizes so a single request stays under the TPM ceiling. For embeddings, retry with exponential backoff.</p>
+      </div></details>
+
+      <details class="qa"><summary>Whiteboard: design this RAG system from scratch. <span class="tag prac">practical</span> <span class="tag snr">senior</span></summary><div class="a">
+      <p>Two pipelines. <strong>Indexing (offline):</strong> ingest source → clean/split into semantically-whole chunks → embed → store vectors + metadata in a vector DB, and text in a store with full-text. <strong>Query (online):</strong> embed query → dense kNN + sparse search → fuse (RRF) → rerank top-N → pack under a token budget → prompt the LLM with context + citation instructions → stream. Cross-cutting: eval (faithfulness/relevance), caching, observability, guardrails, and provider abstraction. Say <em>"retrieval quality is the whole game"</em> and mention how you'd measure it.</p>
+      </div></details>
+
+      <details class="qa"><summary>Secure a new write endpoint. <span class="tag prac">practical</span></summary><div class="a">
+      <p>Add the auth dependency (<code>CurrentUser</code>) so it requires a valid JWT; add an RBAC guard if it's privileged (<code>require_role</code>); validate/parse the body with a Pydantic schema (never trust raw input); enforce ownership in the service (the resource belongs to <code>owner.id</code>); rate-limit it; and if it triggers external side effects, make it idempotent or gated (like PR creation / the sandbox).</p>
+      </div></details>
+
+      <h3>🎬 Live-coding round (write the code)</h3>
+      <p class="muted">The interviewer shares a screen and asks you to write these. Explain your reasoning as you go.</p>
+
+      <details class="qa"><summary>Extend the chunker to split an oversized function. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>def chunk_symbol(sym, lines, max_tokens, count):
+    body = "\n".join(lines[sym.start:sym.end])
+    if count(body) &lt;= max_tokens:
+        yield Chunk(body, sym.start, sym.end)      # whole symbol — ideal
+        return
+    # too big: slide a line window that stays under the token budget
+    start = sym.start
+    while start &lt; sym.end:
+        end = start
+        while end &lt; sym.end and count("\n".join(lines[start:end + 1])) &lt;= max_tokens:
+            end += 1
+        end = max(end, start + 1)                   # always make progress
+        yield Chunk("\n".join(lines[start:end]), start, end)
+        start = end</code></pre>
+      <p>Principle: keep whole symbols when they fit (best for retrieval + grounding); only fall back to a token-budgeted line window when a single symbol exceeds the budget. For unsupported languages, skip AST and line-window the whole file.</p>
+      </div></details>
+
+      <details class="qa"><summary>Write the WebSocket chat handler (the transport layer). <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>@router.websocket("/{conv_id}/ws")
+async def chat_ws(ws: WebSocket, conv_id: UUID, access_token: str):
+    user = await authenticate(access_token)     # token via ?access_token= (WS can't set headers)
+    await ws.accept()
+    async with session_factory() as session:    # own session for the connection's lifetime
+        service = ChatService(session)
+        try:
+            while True:
+                frame = await ws.receive_json()
+                async for event in service.send_message_streaming(
+                    user, conv_id, frame["content"]
+                ):
+                    await ws.send_json(event.model_dump(mode="json"))  # WsToken/WsToolCall*/WsDone
+        except WebSocketDisconnect:
+            return</code></pre>
+      <p>The router is thin: authenticate, accept, then loop — receive a frame, drive the streaming service, forward each <code>Ws*</code> event as JSON. Auth is via a query param because browsers can't set headers on a WebSocket handshake.</p>
+      </div></details>
+
+      <details class="qa"><summary>Reassemble streamed tool-call fragments (OpenAI-style). <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>calls = {}
+async for chunk in stream:
+    delta = chunk.choices[0].delta
+    if delta.content:
+        yield TextDelta(delta.content)
+    for tc in (delta.tool_calls or []):
+        c = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
+        c["id"]   += tc.id or ""
+        c["name"] += (tc.function.name or "")
+        c["args"] += (tc.function.arguments or "")   # arguments arrive in pieces!
+# after the stream: for each call, json.loads(c["args"])</code></pre>
+      <p>The gotcha seniors know: OpenAI streams tool-call <em>arguments</em> as string fragments across chunks — you must concatenate by <code>index</code> and only <code>json.loads</code> once the stream ends.</p>
+      </div></details>
+
+      <details class="qa"><summary>Implement single-use refresh-token rotation. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>async def refresh(raw_token, repo):
+    row = await repo.get_by_hash(sha256(raw_token))     # store hashes, never raw
+    if row is None or row.revoked or row.expires_at &lt; now():
+        raise UnauthorizedError("invalid refresh token")
+    await repo.revoke(row)                               # single-use: burn it
+    new_raw = issue_opaque_token()
+    await repo.add(hash=sha256(new_raw), user_id=row.user_id, expires_at=...)
+    return new_access_jwt(row.user_id), new_raw</code></pre>
+      <p>Refresh tokens are opaque + hashed at rest; each use is revoked and replaced. Detecting reuse of an already-revoked token is a signal to revoke the whole family (theft).</p>
+      </div></details>
+
+      <details class="qa"><summary>Retry-with-backoff for the embeddings API. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>async def embed_batch(texts, tries=4):
+    for attempt in range(tries):
+        try:
+            return await client.embed(texts)
+        except httpx.HTTPStatusError as e:
+            transient = e.response.status_code in (429, 500, 502, 503)
+            if transient and attempt &lt; tries - 1:
+                await asyncio.sleep(2 ** attempt)   # 1s, 2s, 4s
+                continue
+            raise</code></pre>
+      <p>Only retry <em>transient</em> statuses; exponential backoff avoids hammering a rate-limited provider. Real code also batches (≤256) so one 429 doesn't fail the whole ingest.</p>
+      </div></details>
+
+      <details class="qa"><summary>Upsert a batch of chunks into Qdrant. <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>client.upsert(
+    collection_name=f"repo_{repo_id}",          # one collection per repo
+    points=[
+        PointStruct(
+            id=str(chunk.vector_id),
+            vector=vec,
+            payload={                            # enough to hydrate from Postgres later
+                "chunk_id": str(chunk.id), "file_id": str(chunk.file_id),
+                "start_line": chunk.start_line, "end_line": chunk.end_line,
+                "language": chunk.language,
+            },
+        )
+        for chunk, vec in zip(chunks, vectors)
+    ],
+)</code></pre>
+      <p>The payload carries just enough metadata to look the full row up in Postgres — I keep heavy content out of the vector store and hydrate on read.</p>
+      </div></details>
+
+      <details class="qa"><summary>Cosine similarity from scratch (and why we normalize). <span class="tag prac">practical</span></summary><div class="a">
+      <pre><code>import math
+def cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    return dot / (na * nb) if na and nb else 0.0</code></pre>
+      <p>If you <strong>normalize vectors to unit length at ingest</strong> (I do), <code>na == nb == 1</code>, so cosine reduces to a plain <strong>dot product</strong> — cheaper, and it's why Qdrant's cosine distance on normalized vectors is fast.</p>
+      </div></details>
+
+    </section>
+
+    <section id="tips">
+      <h2 class="sec"><span class="num">17</span>Final tips</h2>
+      <ul>
+        <li><strong>Lead with the flow, not the file list.</strong> Reason about data movement and trade-offs.</li>
+        <li><strong>Be honest about scope.</strong> "Single agent here, multi-agent there; read-only tools; sandbox off in cloud" reads as senior.</li>
+        <li><strong>Have one deep debugging story ready</strong> (the SSE bug or the tool-runaway fix) — a real narrative beats buzzwords.</li>
+        <li><strong>Know the numbers</strong> (§6) and be able to draw the system diagram from memory.</li>
+        <li><strong>Practice out loud.</strong> Open a question, cover the answer, explain it, then check.</li>
+      </ul>
+      <p class="muted">Companion: <code>Ai_coding_agent.md</code> (file-by-file), <code>docs/ARCHITECTURE_DIAGRAM.md</code> (diagrams on GitHub), <code>docs/INTERVIEW_PREP.md</code> (markdown version of this).</p>
+    </section>
+  </main>
+</div>
+
+<!-- Mermaid bundled locally (vendor/mermaid.min.js) so diagrams render fully offline.
+     A classic <script src> is used (not an ESM import) because browsers block ESM
+     imports over the file:// protocol. -->
+<script src="vendor/mermaid.min.js"></script>
+<script>
+  // This script is the last thing in <body>, so every .mermaid element is already
+  // in the DOM — run explicitly (more reliable than startOnLoad with a big local bundle).
+  mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose', flowchart: { curve: 'basis' } });
+  mermaid.run();
+</script>
+</body>
+</html>
