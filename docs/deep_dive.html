@@ -190,8 +190,46 @@
     <a href="#m8-scale">10 · Scalability</a>
     <a href="#m8-f500">11 · Industry</a>
     <a href="#m8-qa">Interview Q&amp;A</a>
-    <a href="#m9" class="section coming">Module 9 · Sandbox (next)</a>
-    <a href="#more" class="coming">Modules 10–11 (to come)</a>
+    <a href="#m9" class="section">Module 9 · Sandbox</a>
+    <a href="#m9-why">1 · Why</a>
+    <a href="#m9-fit">2 · Where it fits</a>
+    <a href="#m9-comms">3 · Communication</a>
+    <a href="#m9-db">4 · Data</a>
+    <a href="#m9-api">5 · APIs</a>
+    <a href="#m9-flow">6 · Run flow</a>
+    <a href="#m9-edge">7 · Edge cases</a>
+    <a href="#m9-best">8 · Best practices</a>
+    <a href="#m9-sec">9 · Security</a>
+    <a href="#m9-scale">10 · Scalability</a>
+    <a href="#m9-f500">11 · Industry</a>
+    <a href="#m9-qa">Interview Q&amp;A</a>
+    <a href="#m10" class="section">Module 10 · Providers</a>
+    <a href="#m10-why">1 · Why</a>
+    <a href="#m10-fit">2 · Where it fits</a>
+    <a href="#m10-comms">3 · Communication</a>
+    <a href="#m10-db">4 · Config</a>
+    <a href="#m10-api">5 · Interface</a>
+    <a href="#m10-flow">6 · Resolution flow</a>
+    <a href="#m10-edge">7 · Edge cases</a>
+    <a href="#m10-best">8 · Best practices</a>
+    <a href="#m10-sec">9 · Security</a>
+    <a href="#m10-scale">10 · Scalability</a>
+    <a href="#m10-f500">11 · Industry</a>
+    <a href="#m10-qa">Interview Q&amp;A</a>
+    <a href="#m11" class="section">Module 11 · Observability/Deploy</a>
+    <a href="#m11-why">1 · Why</a>
+    <a href="#m11-fit">2 · Where it fits</a>
+    <a href="#m11-comms">3 · Communication</a>
+    <a href="#m11-db">4 · Signals</a>
+    <a href="#m11-api">5 · Endpoints</a>
+    <a href="#m11-flow">6 · Request flow</a>
+    <a href="#m11-edge">7 · Edge cases</a>
+    <a href="#m11-best">8 · Best practices</a>
+    <a href="#m11-sec">9 · Security</a>
+    <a href="#m11-scale">10 · Scalability</a>
+    <a href="#m11-f500">11 · Industry</a>
+    <a href="#m11-qa">Interview Q&amp;A</a>
+    <a href="#done" class="section">✅ All 11 complete</a>
   </nav>
 
   <main>
@@ -1309,15 +1347,334 @@ api/v1/github.py</code></pre>
       <li>Returning a raw 500 on a GitHub/LLM error instead of an actionable message.</li>
     </ul>
 
-    <!-- ===================== PLACEHOLDER ===================== -->
-    <h2 id="m9">Module 9 — Sandbox <span class="muted" style="font-size:15px">· coming next</span></h2>
-    <p class="muted" id="more">Next up (Module 9): the <b>hardened sandbox</b> — disposable Docker containers
-    (network-isolated, non-root, read-only, resource-capped) behind a command-safety policy. Then: the
-    provider abstraction (pluggable LLM/embeddings) and observability/deploy.</p>
+    <!-- ===================== MODULE 9 ===================== -->
+    <h2 id="m9">Module 9 — Sandbox</h2>
+    <p class="lead">The safe "act" capability: run commands/code in <b>disposable, network-isolated,
+    non-root, resource-capped Docker containers</b> behind a <b>command-safety policy</b>. Defense in depth —
+    a policy gate <i>and</i> hard container isolation. (Disabled on the managed cloud, which has no Docker socket.)</p>
+    <h4>Files in this module</h4>
+    <pre><code>infrastructure/sandbox/policy.py    command classifier (allow / approval / blocked)
+infrastructure/sandbox/service.py   SandboxService — spawn hardened sibling containers, stream output
+domain/sandbox/schemas.py           ClassifyRequest/Response
+api/v1/sandbox.py                   classify (REST) + run (WebSocket)</code></pre>
+
+    <div class="step" id="m9-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li>Some agent value requires <b>running</b> code (tests, scripts) — but executing untrusted commands is dangerous.</li>
+        <li>The answer is <b>strong isolation</b>: run it, but in a throwaway box that can't touch the host or the network.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "The safe execution path — disposable, locked-down Docker containers
+      behind a command policy, so the agent can run code without endangering the host."</div>
+    </div>
+
+    <div class="step" id="m9-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>The counterpart to read-only tools: the one place code actually runs, deliberately isolated. It's
+      <b>feature-flagged off on managed cloud</b> (no host Docker socket) and on in the Docker/K8s deploys.</p>
+    </div>
+
+    <div class="step" id="m9-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p><b>WebSocket</b> streams combined stdout/stderr + exit code live. It spawns <b>sibling containers</b> via
+      the mounted Docker socket (not nested Docker).</p>
+    </div>
+
+    <div class="step" id="m9-db"><span class="num">STEP 4</span><b>Data</b>
+      <p><b>No tables</b> — command classification is computed; containers are ephemeral (auto-removed).</p>
+    </div>
+
+    <div class="step" id="m9-api"><span class="num">STEP 5</span><b>APIs</b>
+      <p><code>/api/v1/sandbox/classify</code> (verdict + reason) + a <b>WebSocket</b> to run with approval-gate
+      enforcement.</p>
+    </div>
+
+    <div class="step" id="m9-flow"><span class="num">STEP 6</span><b>Run flow</b>
+      <ol>
+        <li><b>Classify</b> the command → <code>allow</code> / <code>approval</code> / <code>blocked</code>.</li>
+        <li>Blocked → refuse; approval → wait for the user; allow → proceed.</li>
+        <li><b>Spawn</b> a hardened container; <b>stream</b> output over the WS; enforce a <b>hard timeout</b>.</li>
+        <li>Container <b>auto-removes</b> on exit.</li>
+      </ol>
+    </div>
+
+    <div class="step" id="m9-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Destructive commands</b> (<code>rm -rf /</code>, fork bombs, device writes, docker socket access) — hard-blocked by policy.</li>
+        <li><b>Network tools / installs / sudo</b> — require explicit approval.</li>
+        <li><b>Runaway process</b> — hard wall-clock timeout + resource caps kill it.</li>
+        <li><b>No Docker socket</b> (managed cloud) — the whole feature is hidden behind a flag.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m9-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Defense in depth</b> — policy gate <i>and</i> container isolation (never rely on one).</li>
+        <li><b>Disposable + auto-remove</b> — no persistent state.</li>
+        <li><b>Least privilege</b> — drop everything by default.</li>
+        <li><b>Feature flag</b> — cleanly disabled where the runtime can't support it.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m9-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <p>The isolation stack: <code>network_mode=none</code> · <code>cap_drop=ALL</code> ·
+      <code>no-new-privileges</code> · read-only root + tmpfs <code>/workspace</code> · non-root user ·
+      memory/CPU/pids caps · hard timeout · auto-remove — <b>plus</b> the command-policy classifier in front.</p>
+      <div class="callout warn"><b>Interview trap:</b> "Isn't the policy enough?" → No — a policy can be bypassed;
+      the container isolation is the real boundary. Policy is UX + a first filter, isolation is the guarantee.</div>
+    </div>
+
+    <div class="step" id="m9-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <p>Each run is an independent ephemeral container; scale by adding hosts. In K8s you'd move to a per-pod or
+      microVM runtime for stronger isolation at scale.</p>
+    </div>
+
+    <div class="step" id="m9-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>Real code-execution products don't trust plain containers — they use <b>gVisor</b> (sandboxed kernel),
+      <b>Firecracker microVMs</b> (AWS Lambda, e2b, Modal), or per-tenant VMs. My Docker isolation is the right
+      first tier; the hardening path is a microVM runtime.</p>
+    </div>
+
+    <h3 id="m9-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>How is the sandbox hardened?</summary>
+      <code>network_mode=none</code>, <code>cap_drop=ALL</code>, <code>no-new-privileges</code>, read-only root +
+      tmpfs, non-root user, memory/CPU/pids caps, hard timeout, auto-remove — behind a command-policy classifier.</details>
+    <details class="qa"><summary>Isn't the command policy enough on its own?</summary>
+      No — policies can be evaded. The container isolation is the real boundary; the policy is UX + a first filter.
+      Defense in depth.</details>
+    <details class="qa"><summary>Why is it disabled on the cloud deploy?</summary>
+      Managed PaaS gives no host Docker socket, so it can't spawn sibling containers. It's hidden behind a build
+      flag rather than removed.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Running containers as root / with default capabilities.</li>
+      <li>Leaving network access on.</li>
+      <li>No timeout or resource caps (runaway processes).</li>
+      <li>Trusting a command allowlist without real isolation.</li>
+    </ul>
+
+    <!-- ===================== MODULE 10 ===================== -->
+    <h2 id="m10">Module 10 — Provider Abstraction (LLM &amp; Embeddings)</h2>
+    <p class="lead">The <b>ports &amp; adapters</b> boundary that makes the whole app model-agnostic: LLMs and
+    embedding models sit behind Protocols with a factory, so you swap Ollama ⇄ OpenAI ⇄ Groq (and local ⇄ Jina)
+    with one env var — even per conversation.</p>
+    <h4>Files in this module</h4>
+    <pre><code>infrastructure/llm/
+├── base.py            LLMProvider Protocol + ChatMessage/ToolDef/ToolCall/StreamChunk
+├── factory.py         get_llm_provider() — picks the concrete provider from config
+├── ollama.py          local Ollama adapter
+└── openai_provider.py OpenAI-compatible adapter (OpenAI / Groq / vLLM / LM Studio)
+infrastructure/embeddings/
+├── base.py · local.py · openai_provider.py (OpenAI/Jina) · reranker.py</code></pre>
+
+    <div class="step" id="m10-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li><b>Vendor independence</b> — the project is self-hostable; it can't be locked to one LLM vendor.</li>
+        <li><b>Testability</b> — everything depends on a Protocol, so tests use fakes.</li>
+        <li><b>Cost/quality flexibility</b> — run free local models in dev, fast Groq in prod, per-conversation.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "Ports &amp; adapters — an LLMProvider/EmbeddingProvider Protocol plus
+      a factory, so providers are config, not code. Swap Ollama ⇄ Groq with one env var."</div>
+    </div>
+
+    <div class="step" id="m10-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>It's the <b>infrastructure boundary</b> every AI feature depends on — chat, agents, insights, audit, eval
+      all call <code>get_llm_provider()</code> / <code>get_embedding_provider()</code>, never a concrete SDK.</p>
+    </div>
+
+    <div class="step" id="m10-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>Via <b>Protocol interfaces</b> — <code>chat()</code>, <code>stream()</code>, <code>embed_texts()</code>.
+      Concrete adapters talk HTTP to their provider; the factory returns the right one from config.</p>
+    </div>
+
+    <div class="step" id="m10-db"><span class="num">STEP 4</span><b>Config (no data)</b>
+      <p>Driven by settings: <code>LLM_PROVIDER</code>, <code>OPENAI_BASE_URL</code>/<code>API_KEY</code>, model
+      names, embedding provider + dimension. The conversation row can also store a per-conversation model.</p>
+    </div>
+
+    <div class="step" id="m10-api"><span class="num">STEP 5</span><b>Interface (internal)</b>
+      <p>Not an HTTP API — an <b>internal port</b>: <code>get_llm_provider(provider?, model?)</code> and
+      <code>get_embedding_provider()</code>. That's the whole surface the rest of the code sees.</p>
+    </div>
+
+    <div class="step" id="m10-flow"><span class="num">STEP 6</span><b>Resolution flow</b>
+      <ol>
+        <li>Caller asks the factory for a provider (optionally overriding provider/model).</li>
+        <li>Factory reads config → constructs the concrete adapter (Ollama / OpenAI-compatible).</li>
+        <li>Caller uses <code>chat</code>/<code>stream</code> against the Protocol — provider quirks are hidden.</li>
+      </ol>
+    </div>
+
+    <div class="step" id="m10-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Streamed tool-call fragments differ</b> by provider — adapters normalize them.</li>
+        <li><b>429 / rate limits</b> — embeddings retry with exponential backoff + batching.</li>
+        <li><b>Embedding dimension mismatch</b> on provider switch — the collection must match; re-ingest.</li>
+        <li><b>Small models fail tool calls</b> — heuristics downgrade tools for known-tiny models.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m10-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Protocol + factory</b> — depend on abstractions, not SDKs.</li>
+        <li><b>Normalize provider quirks</b> in the adapter, not the caller.</li>
+        <li><b>Retry/backoff</b> on transient errors; batch embeddings.</li>
+        <li><b>Config over code</b> — one env var to switch.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m10-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <p>API keys live server-side in config only; <code>base_url</code> is configurable (for self-hosted
+      inference); nothing provider-related is exposed to the frontend.</p>
+    </div>
+
+    <div class="step" id="m10-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <p>Swap to faster/cheaper providers as load changes; run local models to cut cost; the abstraction means
+      that's a config change, not a rewrite.</p>
+    </div>
+
+    <div class="step" id="m10-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>The same idea powers <b>LiteLLM</b> and <b>OpenRouter</b> (one interface for many models). The
+      <b>OpenAI-compatible API</b> has become a de-facto standard — which is exactly why my one adapter serves
+      OpenAI, Groq, vLLM, and LM Studio.</p>
+    </div>
+
+    <h3 id="m10-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>How is the app model-agnostic?</summary>
+      A Protocol (chat/stream/embed) + a factory that returns Ollama/OpenAI/Groq from config, even per
+      conversation. The rest of the code depends on the Protocol, never a concrete SDK.</details>
+    <details class="qa"><summary>What broke when you switched embedding providers?</summary>
+      Dimensions/semantics differ across models, so vectors aren't comparable — the collection dimension must
+      match; I re-ingest. Also added 429 retry/backoff.</details>
+    <details class="qa"><summary>Why the abstraction instead of just calling OpenAI?</summary>
+      Vendor independence (self-hostable), testability (fakes), and cost flexibility (local in dev, Groq in prod).</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Hardcoding one provider's SDK across the codebase.</li>
+      <li>Leaking provider quirks (streaming formats) into business logic.</li>
+      <li>Mixing vectors from different embedding models.</li>
+      <li>No retry/backoff against rate-limited providers.</li>
+    </ul>
+
+    <!-- ===================== MODULE 11 ===================== -->
+    <h2 id="m11">Module 11 — Observability &amp; Deployment</h2>
+    <p class="lead">The production-readiness layer: Prometheus metrics, structured logging with request
+    correlation, token/cost accounting, and three deployment modes (Docker Compose, Helm/K8s, free-tier split).
+    You can't operate what you can't see.</p>
+    <h4>Files in this module</h4>
+    <pre><code>core/metrics.py            Prometheus counters + histograms (aca_*)
+core/logging.py            structlog, request_id/trace_id propagation, secret redaction
+core/cost.py               tiktoken token counting + USD cost estimation
+api/middleware/            request_id · metrics · rate_limit
+docker-compose.yml · infra/helm/aca · render.yaml · apps/web/vercel.json</code></pre>
+
+    <div class="step" id="m11-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li>An LLM app without observability is a black box — you can't debug latency, cost, or failures.</li>
+        <li><b>Cost</b> is a first-class concern with paid LLMs — it must be measured.</li>
+        <li>It's what makes the project <b>production-shaped</b>, not a demo.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "Prometheus metrics + correlated structured logs + token/cost
+      accounting, deployable three ways with graceful degradation."</div>
+    </div>
+
+    <div class="step" id="m11-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p><b>Cross-cutting</b> — middleware wraps every request; metrics/logging/cost instrument every layer.
+      Deployment configs sit at the repo root + <code>infra/</code>.</p>
+    </div>
+
+    <div class="step" id="m11-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>Exposes <code>/metrics</code> (Prometheus scrape), emits JSON logs (shipped to any aggregator), and
+      Grafana reads Prometheus. Celery uses multiprocess metrics aggregation.</p>
+    </div>
+
+    <div class="step" id="m11-db"><span class="num">STEP 4</span><b>Signals</b>
+      <p>Metrics (<code>aca_*</code>: HTTP, LLM calls/tokens/latency, tools, search, ingest, cost), structured logs
+      (with <code>request_id</code>), and derived cost. No DB tables.</p>
+    </div>
+
+    <div class="step" id="m11-api"><span class="num">STEP 5</span><b>Endpoints</b>
+      <p><code>/metrics</code> (Prometheus), <code>/health</code> (liveness), <code>/api/v1/ready</code>
+      (readiness — Postgres/Redis checks).</p>
+    </div>
+
+    <div class="step" id="m11-flow"><span class="num">STEP 6</span><b>Request flow (instrumentation)</b>
+      <ol>
+        <li><b>request_id</b> middleware — generate/propagate a correlation id, bind to structlog.</li>
+        <li><b>metrics</b> middleware — count + time the request by route/status.</li>
+        <li><b>rate_limit</b> middleware — Redis sliding window (fails open).</li>
+        <li>Each LLM call records tokens → <b>cost.py</b> → a Prometheus cost counter.</li>
+      </ol>
+    </div>
+
+    <div class="step" id="m11-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Celery multiprocess</b> — aggregate metrics across worker children.</li>
+        <li><b>Redis down</b> — rate limiter <b>fails open</b> (availability over a perfect limit).</li>
+        <li><b>Free-tier cold start</b> (~30–60s) — measured + documented; a keep-warm pinger mitigates.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m11-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Request-id correlation</b> — every log line in a request shares an id.</li>
+        <li><b>Consistent metric naming</b> (<code>aca_&lt;area&gt;_&lt;thing&gt;_&lt;unit&gt;</code>).</li>
+        <li><b>Cost accounting</b> surfaced in Grafana + the UI.</li>
+        <li><b>Health vs readiness</b> split; <b>secret redaction</b> in logs.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m11-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <p>Rate limiting (Redis sliding window), production security headers (HSTS, etc.), and <b>secret redaction</b>
+      in logs (passwords/tokens/keys never logged).</p>
+    </div>
+
+    <div class="step" id="m11-scale"><span class="num">STEP 10</span><b>Scalability &amp; deployment</b>
+      <ul>
+        <li><b>Three modes:</b> Docker Compose (local, 9 services), Helm/K8s (HPA/PDB/NetworkPolicy/Ingress), free-tier split (Render/Vercel/Neon/Upstash/Qdrant/Groq/Jina).</li>
+        <li><b>Graceful degradation:</b> inline ingestion when there's no worker; sandbox off without a Docker socket.</li>
+        <li>Stateless API + HPA scales horizontally.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m11-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>The standard is the <b>four golden signals</b> (latency, traffic, errors, saturation), <b>OpenTelemetry</b>
+      tracing, and <b>12-factor</b> config. My Prometheus/structlog/cost stack covers the essentials; the next step
+      is OTel spans across search → LLM → tools for full request tracing.</p>
+    </div>
+
+    <h3 id="m11-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>How do you observe the system?</summary>
+      Prometheus metrics (<code>aca_*</code>), structured logs with a request_id per request, Grafana dashboards,
+      and per-LLM-call cost accounting.</details>
+    <details class="qa"><summary>How do you track LLM cost?</summary>
+      <code>cost.py</code> counts tokens with tiktoken × a per-1M-token price table (local = free) → a Prometheus
+      counter + a token meter in the UI.</details>
+    <details class="qa"><summary>Why does the rate limiter "fail open"?</summary>
+      If Redis is unreachable, allowing the request preserves availability — a rate limit is a non-critical control,
+      so availability wins.</details>
+    <details class="qa"><summary>What are your deploy modes and their trade-offs?</summary>
+      Docker Compose (local), Helm/K8s (production), free-tier split (portfolio) — the last trades cold starts +
+      tight limits for zero cost, with graceful degradation.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>No request correlation (undebuggable logs).</li>
+      <li>Logging secrets/tokens.</li>
+      <li>No cost visibility on paid LLMs.</li>
+      <li>A rate limiter that fails <i>closed</i> (Redis outage = full outage).</li>
+    </ul>
+
+    <!-- ===================== DONE ===================== -->
+    <h2 id="done">✅ Deep dive complete — all 11 modules</h2>
+    <p class="lead" id="more">Every module now has the full 11-step breakdown + interview Q&amp;A + common
+    mistakes. Use it as: a <b>study path</b> (read a module, then drill it in <a href="mock_interview.html">the mock</a>),
+    a <b>talking script</b> (the 11 steps per module), and <b>portfolio evidence</b> (what you built and why).</p>
+    <div class="callout tip"><b>How to revise fast:</b> for each module, be able to say Step 1 (why), Step 6
+    (the flow), Step 9 (security), and one Q&amp;A — that covers ~80% of what interviewers probe.</div>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:40px 0 16px" />
     <p class="muted" style="font-size:13px">Deep-dive study guide · AI Coding Agent ·
-    Modules 1–8 complete · Modules 9–11 to follow. Companion:
+    ✅ All 11 modules complete. Companion:
     <a href="interview_prep.html">interview_prep.html</a> (study guide + mock) ·
     <a href="../Ai_coding_agent.md">Ai_coding_agent.md</a> (file-by-file).</p>
   </main>
