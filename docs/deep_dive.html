@@ -164,8 +164,34 @@
     <a href="#m6-scale">10 · Scalability</a>
     <a href="#m6-f500">11 · Industry</a>
     <a href="#m6-qa">Interview Q&amp;A</a>
-    <a href="#m7" class="section coming">Module 7 · Auth &amp; Identity (next)</a>
-    <a href="#more" class="coming">Modules 8–11 (to come)</a>
+    <a href="#m7" class="section">Module 7 · Auth &amp; Identity</a>
+    <a href="#m7-why">1 · Why</a>
+    <a href="#m7-fit">2 · Where it fits</a>
+    <a href="#m7-comms">3 · Communication</a>
+    <a href="#m7-db">4 · Data</a>
+    <a href="#m7-api">5 · APIs</a>
+    <a href="#m7-flow">6 · Login flow</a>
+    <a href="#m7-edge">7 · Edge cases</a>
+    <a href="#m7-best">8 · Best practices</a>
+    <a href="#m7-sec">9 · Security</a>
+    <a href="#m7-scale">10 · Scalability</a>
+    <a href="#m7-f500">11 · Industry</a>
+    <a href="#m7-qa">Interview Q&amp;A</a>
+    <a href="#m8" class="section">Module 8 · GitHub</a>
+    <a href="#m8-why">1 · Why</a>
+    <a href="#m8-fit">2 · Where it fits</a>
+    <a href="#m8-comms">3 · Communication</a>
+    <a href="#m8-db">4 · Data</a>
+    <a href="#m8-api">5 · APIs</a>
+    <a href="#m8-flow">6 · PR / review flow</a>
+    <a href="#m8-edge">7 · Edge cases</a>
+    <a href="#m8-best">8 · Best practices</a>
+    <a href="#m8-sec">9 · Security</a>
+    <a href="#m8-scale">10 · Scalability</a>
+    <a href="#m8-f500">11 · Industry</a>
+    <a href="#m8-qa">Interview Q&amp;A</a>
+    <a href="#m9" class="section coming">Module 9 · Sandbox (next)</a>
+    <a href="#more" class="coming">Modules 10–11 (to come)</a>
   </nav>
 
   <main>
@@ -1061,15 +1087,237 @@ api/v1/memory.py</code></pre>
       <li>Leaking memories across users (owner-scoped filters).</li>
     </ul>
 
+    <!-- ===================== MODULE 7 ===================== -->
+    <h2 id="m7">Module 7 — Auth &amp; Identity</h2>
+    <p class="lead">The security foundation: Argon2 password hashing, <b>JWT access + rotating refresh</b>
+    tokens, RBAC, and deny-by-default guards. Every other endpoint depends on the identity it produces —
+    authorization and ownership checks are meaningless without it.</p>
+    <h4>Files in this module</h4>
+    <pre><code>domain/auth/service.py       AuthService — verify, issue tokens, rotate refresh, audit
+domain/users/                models.py (User, Role, RefreshToken, AuditLog) · repository.py · service.py
+core/security.py             Argon2 hashing · JWT create/decode · refresh-token hashing
+core/dependencies.py         CurrentUser · require_role (RBAC guards)
+api/v1/auth.py, users.py</code></pre>
+
+    <div class="step" id="m7-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li><b>Identity is the foundation</b> — every ownership check (<code>repo.owner_id == user.id</code>) and every scoped query depends on a trustworthy <code>user.id</code>.</li>
+        <li>It's a <b>cross-cutting layer</b>, not just a feature — configured once so every endpoint is authenticated by default.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "Authentication produces the identity that authorization,
+      ownership, and scoping all depend on — it's the foundation, not a feature."</div>
+    </div>
+
+    <div class="step" id="m7-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p><b>Deny-by-default</b>: the framework applies <code>IsAuthenticated</code> globally, so every route
+      requires a valid token unless explicitly public (login/register). <code>CurrentUser</code> is the
+      dependency every endpoint injects.</p>
+    </div>
+
+    <div class="step" id="m7-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>To other modules — <b>it doesn't</b>. That's the point of a <b>stateless JWT</b>: modules read the
+      identity/permissions from the signed token, with no callback to auth. Access tokens self-validate.</p>
+      <div class="callout"><b>Key decision:</b> <i>stateless access token, stateful refresh token</i> — access
+      tokens scale (self-validate); refresh tokens are revocable (security). The #1 JWT interview point.</div>
+    </div>
+
+    <div class="step" id="m7-db"><span class="num">STEP 4</span><b>Data</b>
+      <table>
+        <tr><th>Table</th><th>Role</th></tr>
+        <tr><td><code>users</code></td><td>identity (email as CITEXT), eager-loaded roles</td></tr>
+        <tr><td><code>roles</code> + join</td><td>RBAC catalog</td></tr>
+        <tr><td><code>refresh_tokens</code></td><td><b>hashed</b>, revocable, single-use</td></tr>
+        <tr><td><code>audit_logs</code></td><td>login_success/failed, refresh, logout (JSONB metadata)</td></tr>
+      </table>
+      <div class="callout warn"><b>Interview trap:</b> "Why store the token <i>hash</i>, not the token?" → if the
+      DB leaks, raw refresh tokens don't.</div>
+    </div>
+
+    <div class="step" id="m7-api"><span class="num">STEP 5</span><b>APIs</b>
+      <p><code>/api/v1/auth/</code>: <code>register</code>, <code>login</code>, <code>refresh</code>,
+      <code>logout</code>; <code>/api/v1/users/me</code> (get + update profile / change password).</p>
+    </div>
+
+    <div class="step" id="m7-flow"><span class="num">STEP 6</span><b>Login flow</b>
+      <ol>
+        <li>Look up user by email.</li>
+        <li>Verify password with <b>Argon2</b> (deliberately slow).</li>
+        <li>On failure: write an audit row, return a <b>generic</b> <code>invalid_credentials</code> (no enumeration).</li>
+        <li>On success: issue a short-lived <b>access JWT</b> + an opaque <b>refresh token</b> (stored hashed); audit the login.</li>
+        <li><b>Refresh:</b> validate → revoke the used token (single-use) → issue a fresh pair (rotation).</li>
+      </ol>
+    </div>
+
+    <div class="step" id="m7-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>User enumeration</b> — unknown user &amp; wrong password return the <i>identical</i> error.</li>
+        <li><b>Refresh reuse</b> — a revoked refresh token presented again signals theft → reject.</li>
+        <li><b>Expired access token</b> — the frontend refreshes once on a 401 and retries.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m7-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Argon2id</b> for passwords (memory-hard, brute-force resistant).</li>
+        <li><b>Deny-by-default</b> permissions.</li>
+        <li><b>Short access TTL + revocable refresh</b>.</li>
+        <li><b>Thin views / fat services</b>; uniform error envelope.</li>
+        <li><b>Hash refresh tokens at rest</b>; never log raw tokens.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m7-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <p>Argon2 · generic errors · hashed + rotated refresh tokens · short access TTL · RBAC guards · audit
+      logging. <b>Future:</b> HS256 → RS256 with keys from a secret manager; MFA for destructive actions.</p>
+    </div>
+
+    <div class="step" id="m7-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <ul>
+        <li><b>Stateless access tokens</b> → the API tier scales horizontally with no shared session store.</li>
+        <li>Authorization is O(1) from token claims — no DB hit per request.</li>
+      </ul>
+      <div class="callout"><b>Gold:</b> "Cost of permissions-in-token?" → staleness until the token expires;
+      mitigation is a short TTL (+ a denylist for hard revocation).</div>
+    </div>
+
+    <div class="step" id="m7-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>Enterprises rarely build the IdP — they front it with <b>Okta / Auth0 / Azure AD / Cognito</b> (OIDC/SAML),
+      auto-provision via SCIM, and enforce MFA. My build models the same primitives (Argon2, JWT, rotation, RBAC)
+      and would slot an external IdP in behind the same interface.</p>
+    </div>
+
+    <h3 id="m7-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>JWT vs sessions?</summary>
+      Stateless scale vs revocability — I use <b>both</b>: a short-lived self-validating access token + a
+      revocable, rotated refresh token.</details>
+    <details class="qa"><summary>Why refresh-token rotation?</summary>
+      Single-use: each refresh is revoked and replaced. A reused (already-revoked) token signals theft → reject
+      / revoke the family.</details>
+    <details class="qa"><summary>Where do you check permissions, and why there?</summary>
+      In dependency guards from token claims — centralized, no scattered <code>if</code>s, no DB hit per request.</details>
+    <details class="qa"><summary>How do you stop enumeration / brute force?</summary>
+      Identical generic errors for unknown-user vs wrong-password, plus (prod) rate limiting.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Long-lived access tokens with no revocation (split access/refresh).</li>
+      <li>Storing raw refresh/reset tokens (hashed at rest).</li>
+      <li>Checking <code>role == "admin"</code> in code (check permissions/roles via guards).</li>
+      <li>Leaking which emails exist (generic errors).</li>
+    </ul>
+
+    <!-- ===================== MODULE 8 ===================== -->
+    <h2 id="m8">Module 8 — GitHub Integration</h2>
+    <p class="lead">Closes the loop from "understand code" to "<b>ship code</b>": generate a pull request from
+    changes (including turning a chat answer into a PR) and run an <b>AI review</b> of an existing PR's diff —
+    all via a server-side PAT.</p>
+    <h4>Files in this module</h4>
+    <pre><code>domain/github/service.py         GitHubService — status · create_pr · review_pr
+infrastructure/github/client.py  thin async GitHub REST client (Bearer PAT)
+api/v1/github.py</code></pre>
+
+    <div class="step" id="m8-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li>It's the <b>"write" side</b> — the agent can propose changes, not just answer questions.</li>
+        <li>It makes the tool <b>actionable</b>: chat → edit → open a PR; or AI-review an existing PR.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "The gated write path — generate a PR from changes or AI-review a PR's
+      diff, via a server-side token, so all writes are reviewable on GitHub."</div>
+    </div>
+
+    <div class="step" id="m8-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>It's the <b>gated write flow</b> the read-only chat tools deliberately avoid. Chat/test-gen produce
+      content; this module turns it into a PR a human reviews.</p>
+    </div>
+
+    <div class="step" id="m8-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>Calls the <b>GitHub REST API</b> over httpx with a <b>server-side PAT</b> (never exposed to the frontend).
+      A thin client wraps whoami / branch / file / pull / diff / comment.</p>
+    </div>
+
+    <div class="step" id="m8-db"><span class="num">STEP 4</span><b>Data</b>
+      <p><b>No tables</b> — stateless calls to GitHub, authenticated by the configured token.</p>
+    </div>
+
+    <div class="step" id="m8-api"><span class="num">STEP 5</span><b>APIs</b>
+      <p><code>/api/v1/github/</code>: <code>status</code>, <code>pulls</code> (create PR), <code>review</code> (AI review).</p>
+    </div>
+
+    <div class="step" id="m8-flow"><span class="num">STEP 6</span><b>PR / review flow</b>
+      <ul>
+        <li><b>Create PR:</b> branch off the base SHA → commit each changed file → open a pull request → return the URL.</li>
+        <li><b>Review PR:</b> fetch the diff (capped ~24k chars) → send to the LLM → return the review, optionally post it as a PR comment.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m8-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>PAT lacks scope</b> ("Resource not accessible") — surfaced clearly; needs <code>repo</code> write.</li>
+        <li><b>Branch already exists / same as base</b> — new branch must differ from base.</li>
+        <li><b>Huge diff</b> — capped before sending to the LLM.</li>
+        <li><b>LLM rate limit during review</b> — caught and surfaced (not a raw 500).</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m8-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Server-side token only</b> — never sent to the browser.</li>
+        <li><b>Writes are reviewable</b> — output is a PR, not a direct push to main.</li>
+        <li><b>Cap the diff</b> before the LLM (cost + context limits).</li>
+        <li><b>Clear errors</b> — GitHub 4xx mapped to actionable messages.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m8-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <ul>
+        <li><b>PAT server-side</b> — the token never leaves the backend.</li>
+        <li><b>Least privilege</b> — scope the PAT to only what PR create/review needs.</li>
+        <li><b>Human in the loop</b> — a PR requires review/merge; nothing auto-lands.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m8-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <p>Bound by the GitHub API (rate limits); calls are stateless and independent. A GitHub App would raise
+      limits + scope per-installation.</p>
+    </div>
+
+    <div class="step" id="m8-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>Production integrations use a <b>GitHub App</b> (fine-grained, per-install OAuth) rather than a personal
+      PAT; AI PR review is exactly what <b>CodeRabbit, Copilot, and Graphite Reviewer</b> ship. My PAT approach is
+      the right scope for a self-hosted single-user tool; the App is the multi-tenant upgrade.</p>
+    </div>
+
+    <h3 id="m8-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>How does PR creation work?</summary>
+      Branch off the base SHA → commit each changed file to that branch → open a pull request → return the URL.
+      The user reviews and merges — nothing auto-lands.</details>
+    <details class="qa"><summary>How does AI review work?</summary>
+      Fetch the PR diff (capped), send it to the LLM with a review prompt, return the review and optionally post
+      it as a PR comment.</details>
+    <details class="qa"><summary>Why is the token server-side only?</summary>
+      A GitHub token grants write access — exposing it to the browser would leak it. It stays on the backend and
+      is never returned to the frontend.</details>
+    <details class="qa"><summary>PAT vs GitHub App?</summary>
+      PAT is simplest for a single-user self-hosted tool; a GitHub App gives fine-grained, per-installation
+      permissions and higher rate limits — the multi-tenant path.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Sending the GitHub token to the frontend.</li>
+      <li>Pushing directly to main instead of opening a reviewable PR.</li>
+      <li>Sending an unbounded diff to the LLM (cap it).</li>
+      <li>Returning a raw 500 on a GitHub/LLM error instead of an actionable message.</li>
+    </ul>
+
     <!-- ===================== PLACEHOLDER ===================== -->
-    <h2 id="m7">Module 7 — Auth &amp; Identity <span class="muted" style="font-size:15px">· coming next</span></h2>
-    <p class="muted" id="more">Next up (Module 7): <b>auth &amp; identity</b> — Argon2 password hashing, JWT
-    access + rotating refresh tokens, RBAC, and the deny-by-default dependency guards. Then: GitHub
-    integration, the sandbox, the provider abstraction, and observability/deploy.</p>
+    <h2 id="m9">Module 9 — Sandbox <span class="muted" style="font-size:15px">· coming next</span></h2>
+    <p class="muted" id="more">Next up (Module 9): the <b>hardened sandbox</b> — disposable Docker containers
+    (network-isolated, non-root, read-only, resource-capped) behind a command-safety policy. Then: the
+    provider abstraction (pluggable LLM/embeddings) and observability/deploy.</p>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:40px 0 16px" />
     <p class="muted" style="font-size:13px">Deep-dive study guide · AI Coding Agent ·
-    Modules 1–6 complete · Modules 7–11 to follow. Companion:
+    Modules 1–8 complete · Modules 9–11 to follow. Companion:
     <a href="interview_prep.html">interview_prep.html</a> (study guide + mock) ·
     <a href="../Ai_coding_agent.md">Ai_coding_agent.md</a> (file-by-file).</p>
   </main>
