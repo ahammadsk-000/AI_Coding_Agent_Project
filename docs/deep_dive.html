@@ -99,8 +99,21 @@
     <a href="#m1-scale">10 · Scalability</a>
     <a href="#m1-f500">11 · Industry</a>
     <a href="#m1-qa">Interview Q&amp;A</a>
-    <a href="#m2" class="section coming">Module 2 · Hybrid Search (next)</a>
-    <a href="#more" class="coming">Modules 3–11 (to come)</a>
+    <a href="#m2" class="section">Module 2 · Hybrid Search</a>
+    <a href="#m2-why">1 · Why</a>
+    <a href="#m2-fit">2 · Where it fits</a>
+    <a href="#m2-comms">3 · Communication</a>
+    <a href="#m2-db">4 · Data &amp; stores</a>
+    <a href="#m2-api">5 · APIs</a>
+    <a href="#m2-flow">6 · Retrieval flow</a>
+    <a href="#m2-edge">7 · Edge cases</a>
+    <a href="#m2-best">8 · Best practices</a>
+    <a href="#m2-sec">9 · Security</a>
+    <a href="#m2-scale">10 · Scalability</a>
+    <a href="#m2-f500">11 · Industry</a>
+    <a href="#m2-qa">Interview Q&amp;A</a>
+    <a href="#m3" class="section coming">Module 3 · Chat Agent (next)</a>
+    <a href="#more" class="coming">Modules 4–11 (to come)</a>
   </nav>
 
   <main>
@@ -338,17 +351,178 @@ await redis.publish(f"ingest:events:{job_id}", json.dumps(progress))</code></pre
       <li>Dumping full chunk text into the vector DB payload (bloats it) instead of hydrating from Postgres.</li>
     </ul>
 
+    <!-- ===================== MODULE 2 ===================== -->
+    <h2 id="m2">Module 2 — Hybrid Search &amp; RAG</h2>
+    <p class="lead">The <b>retrieval core</b> — the online half of RAG. Given a question, it finds the
+    most relevant code chunks by running <b>dense</b> (semantic) and <b>sparse</b> (keyword) search
+    in parallel, fusing them, and reranking. Because a great LLM can't fix bad retrieval,
+    <b>this module's quality caps every answer's quality in the whole app.</b></p>
+    <h4>Files in this module</h4>
+    <pre><code>api/v1/search.py                  POST /search · POST /context/build
+domain/search/
+├── service.py                    SearchService — the hybrid pipeline (dense ∥ sparse → RRF → rerank)
+├── context.py                    pack_context() — token-budgeted context assembly
+└── schemas.py                    SearchHit (carries dense/lexical/rerank sub-scores)
+infrastructure/qdrant/client.py   dense kNN (HNSW, cosine, per-repo collection)
+infrastructure/embeddings/reranker.py   cross-encoder (ms-marco-MiniLM), lazy-loaded</code></pre>
+
+    <div class="step" id="m2-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li><b>RAG's online half.</b> Ingestion built the index; this <i>uses</i> it — turning a question into the handful of chunks the LLM will reason over.</li>
+        <li><b>Retrieval quality is the whole game.</b> If the right code isn't retrieved, no model can answer well. This is the highest-leverage module.</li>
+        <li>Every AI feature depends on it — chat, agents, eval, and the similar-code finder all call <code>SearchService.search()</code>.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "Hybrid search decides which code the LLM gets to see. A great
+      model can't fix bad retrieval — so this is where I spend the effort: dense + sparse + fusion + rerank."</div>
+    </div>
+
+    <div class="step" id="m2-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>It sits <b>between ingestion and generation</b>: ingestion produces the index, this retrieves
+      from it, and chat/agents feed the result to the LLM. It's a <b>shared service</b>, not an endpoint —
+      called directly by <code>/search</code>, and internally by chat (RAG context), each agent researcher,
+      the eval harness, and insights.</p>
+      <div class="callout"><b>Design point:</b> retrieval is centralized in one <code>SearchService</code>
+      so every feature gets the same tuned pipeline — fix RRF or rerank once, everything improves.</div>
+    </div>
+
+    <div class="step" id="m2-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>It reads two stores <b>in parallel</b> and returns plain result objects:</p>
+      <pre><code># dense and sparse run concurrently, then fuse
+dense, lexical = await asyncio.gather(
+    self._dense_search(repo_ids, query=query, limit=pool),   # Qdrant kNN
+    self._lexical_search(repo_ids, query=query, limit=pool), # Postgres FTS
+)
+candidates = _rrf_fuse([dense, lexical])                      # rank-based fusion</code></pre>
+      <p>Output is a list of <code>SearchHit</code> (path, lines, content, sub-scores). <code>pack_context()</code>
+      then turns hits into a token-budgeted prompt block for the LLM.</p>
+    </div>
+
+    <div class="step" id="m2-db"><span class="num">STEP 4</span><b>Data &amp; stores</b>
+      <p><b>No new tables</b> — it reads what ingestion wrote:</p>
+      <table>
+        <tr><th>Store</th><th>Used for</th></tr>
+        <tr><td><b>Qdrant</b> (per-repo collection)</td><td>dense kNN over chunk vectors (HNSW, cosine)</td></tr>
+        <tr><td><code>code_chunks.content_tsv</code> (GIN index)</td><td>sparse full-text (<code>ts_rank_cd</code>)</td></tr>
+        <tr><td>Postgres chunk rows</td><td>hydrate path/content/tokens for dense hits (Qdrant payload is minimal)</td></tr>
+      </table>
+      <div class="callout warn"><b>Interview detail:</b> a dense hit from Qdrant carries only ids + lines;
+      the service <b>hydrates</b> the full content from Postgres by chunk id — the two stores are joined at
+      query time, not duplicated.</div>
+    </div>
+
+    <div class="step" id="m2-api"><span class="num">STEP 5</span><b>APIs</b>
+      <table>
+        <tr><th>Endpoint</th><th>Purpose</th></tr>
+        <tr><td><code>POST /api/v1/search</code></td><td>ranked hits — params: <code>query</code>, <code>repository_ids</code>, <code>k</code>, <code>mode</code> (hybrid/dense/lexical), <code>rerank</code></td></tr>
+        <tr><td><code>POST /api/v1/context/build</code></td><td>search + <b>token-budgeted packing</b> under <code>max_tokens</code> — the RAG-ready context block</td></tr>
+      </table>
+    </div>
+
+    <div class="step" id="m2-flow"><span class="num">STEP 6</span><b>Retrieval flow</b>
+      <ol>
+        <li><b>Authorize</b> — resolve which of the caller's <code>ready</code> repos to search.</li>
+        <li><b>Embed</b> the query → a vector.</li>
+        <li><b>Dense ∥ Sparse</b> — Qdrant kNN and Postgres <code>ts_rank_cd</code> run <b>concurrently</b>, each returning a bigger-than-k pool.</li>
+        <li><b>RRF fuse</b> — <code>Σ 1/(k+rank)</code>, k=60 — combine on rank, not raw score.</li>
+        <li><b>Rerank</b> (optional) — cross-encoder re-scores the top-N pool for precision.</li>
+        <li><b>Filter padding</b> — drop low-relevance dense-only hits on small corpora.</li>
+        <li><b>Top-k + hydrate</b> → <code>SearchHit</code>s. (Then <code>pack_context</code> for RAG.)</li>
+      </ol>
+      <div class="pipeline">query ─▶ embed ─┬─▶ Qdrant kNN (dense) ─┐
+                └─▶ Postgres FTS (sparse) ─┴─▶ RRF fuse ─▶ rerank(top-N) ─▶ filter ─▶ top-k ─▶ pack_context ─▶ LLM</div>
+    </div>
+
+    <div class="step" id="m2-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Small corpus "padding"</b> — dense kNN always returns <i>something</i>; <code>_filter_padding</code> drops dense-only hits below a cosine floor (~0.55) unless they also matched lexically.</li>
+        <li><b>No ready repos</b> — return empty fast (an unfinished ingest has no collection to query).</li>
+        <li><b>Reranker fails to load</b> — best-effort: silently fall back to the fused order.</li>
+        <li><b>Weird query text</b> — <code>plainto_tsquery</code> is forgiving (no FTS syntax errors on raw input).</li>
+        <li><b>Orphan Qdrant points</b> (chunk deleted in Postgres) — hydration leaves <code>path=""</code>; those are filtered out.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m2-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Run dense + sparse in parallel</b> (<code>asyncio.gather</code>) — latency = the slower of the two, not the sum.</li>
+        <li><b>Fuse on rank (RRF)</b> — no fragile score normalization across incomparable scales.</li>
+        <li><b>Rerank only the top-N</b> — the cross-encoder is expensive; never run it on the corpus.</li>
+        <li><b>Token-budget the context</b> — merge overlapping ranges, pack under ~1500 tokens.</li>
+        <li><b>Return sub-scores</b> — <code>SearchHit</code> carries dense/lexical/rerank scores for transparency + debugging.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m2-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <ul>
+        <li><b>Tenant isolation</b> — <code>_authorize_repos</code> filters to the caller's own <code>ready</code> repos; you can never search someone else's code.</li>
+        <li><b>No FTS injection</b> — <code>plainto_tsquery</code> treats input as plain tokens, not a query language.</li>
+        <li><b>Parameterized SQL</b> — bound params (<code>expanding</code> IN lists), never string-built queries.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m2-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <ul>
+        <li><b>ANN, not exact</b> — HNSW is ~log-time; exact kNN would be a linear scan.</li>
+        <li><b>Rerank is the cost</b> — CPU-bound cross-encoder, top-N only; it's the main latency lever (toggle off for speed).</li>
+        <li><b>Per-repo collections</b> — smaller HNSW graphs → faster search.</li>
+        <li><b>Caching opportunity</b> — query embeddings are deterministic; caching them (and results) in Redis is the biggest untapped win.</li>
+      </ul>
+      <div class="callout"><b>Gold:</b> "Biggest latency lever?" → the cross-encoder rerank. It's a toggle
+      applied to a small pool, so you trade a little precision for a lot of speed on hot paths.</div>
+    </div>
+
+    <div class="step" id="m2-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p><b>Hybrid + rerank is the production-RAG standard.</b> Elastic and Vespa ship built-in hybrid
+      (BM25 + vectors); Cohere/Voyage sell rerank APIs; <b>ColBERT</b> pioneered late-interaction retrieval.
+      The advanced path from here — the stuff senior RAG engineers add — is <b>query rewriting / multi-query</b>,
+      <b>HyDE</b> (hypothetical-document embeddings), and <b>parent-child (small-to-big)</b> retrieval, plus a
+      labeled eval set to prove each change helps. The through-line everywhere: <i>retrieval quality is the
+      whole game.</i></p>
+    </div>
+
+    <h3 id="m2-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>Why hybrid search instead of pure vector similarity?</summary>
+      Dense captures <b>meaning</b> ("how are users logged in" → <code>authenticate()</code>); sparse/BM25
+      captures <b>exact tokens</b> (the identifier <code>RefreshToken</code>). Code is searched both ways, so
+      pure vectors miss exact matches. Run both in parallel and fuse.</details>
+    <details class="qa"><summary>What is RRF, and why fuse on rank instead of adding the scores?</summary>
+      Reciprocal Rank Fusion: <code>Σ 1/(k+rank)</code>, k=60. Cosine (0–1) and <code>ts_rank_cd</code>
+      (unbounded) are on <b>incomparable scales</b> — adding them lets the bigger-scale score dominate. Rank
+      normalizes that: "rank #1" means best-in-list regardless of the raw number.</details>
+    <details class="qa"><summary>Bi-encoder vs cross-encoder — where does each go?</summary>
+      Bi-encoder embeds query and doc <i>separately</i> (cacheable, fast) → used for <b>retrieval</b>.
+      Cross-encoder encodes the pair <i>together</i> (accurate, uncacheable) → used for <b>reranking</b> a
+      small top-N. Different jobs.</details>
+    <details class="qa"><summary>A small repo returns irrelevant chunks — why, and how do you fix it?</summary>
+      Dense kNN always returns <i>k</i> results even if similarity is low ("padding"). Fix: after fusion, drop
+      dense-only hits below a cosine floor unless they also matched lexically (the <code>_filter_padding</code> step).</details>
+    <details class="qa"><summary>How do you fit retrieved code into the context window?</summary>
+      <code>pack_context</code> groups hits by file, merges overlapping/adjacent line ranges, and greedily packs
+      under a ~1500-token budget (tiktoken). The context window is a budget you architect, not a dump.</details>
+    <details class="qa"><summary>When would dense beat sparse, and vice versa?</summary>
+      Dense wins on paraphrase / concept queries ("auth flow"); sparse wins on exact identifiers, error
+      strings, rare tokens. Hybrid gets both — which is the point.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Pure vector search that misses exact identifiers / function names.</li>
+      <li>Averaging incomparable dense + sparse scores instead of rank-fusing.</li>
+      <li>Reranking the whole corpus (should be a small top-N pool).</li>
+      <li>Dumping every hit into the prompt instead of token-budgeting the context.</li>
+      <li>Running dense then sparse sequentially instead of in parallel.</li>
+    </ul>
+
     <!-- ===================== PLACEHOLDER ===================== -->
-    <h2 id="m2">Module 2 — Hybrid Search &amp; RAG <span class="muted" style="font-size:15px">· coming next</span></h2>
-    <p class="muted" id="more">The deep dive continues module by module. Next up (Module 2) is the
-    retrieval core — dense (Qdrant kNN) + sparse (Postgres FTS) + <b>RRF fusion</b> + cross-encoder
-    rerank + token-budgeted context packing — with the same 11-step breakdown, code, and interview
-    Q&amp;A. Then: the chat agent loop, the multi-agent pipeline, insights/audit/eval, memory, auth,
-    GitHub, sandbox, provider abstraction, and observability/deploy.</p>
+    <h2 id="m3">Module 3 — Chat Agent (ReAct loop) <span class="muted" style="font-size:15px">· coming next</span></h2>
+    <p class="muted" id="more">Next up (Module 3): the <b>chat agent</b> — the ReAct tool-using loop
+    (prompt → tool_calls → execute → feed back → repeat ≤5), the four read-only tools, WebSocket token
+    streaming, memory capture, and the guardrails (tool-call de-dup/caps, rate-limit handling). Then:
+    the multi-agent pipeline, insights/audit/eval, memory, auth, GitHub, sandbox, provider abstraction,
+    and observability/deploy.</p>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:40px 0 16px" />
     <p class="muted" style="font-size:13px">Deep-dive study guide · AI Coding Agent ·
-    Module 1 (Ingestion) complete · Modules 2–11 to follow. Companion:
+    Modules 1–2 complete (Ingestion, Hybrid Search) · Modules 3–11 to follow. Companion:
     <a href="interview_prep.html">interview_prep.html</a> (study guide + mock) ·
     <a href="../Ai_coding_agent.md">Ai_coding_agent.md</a> (file-by-file).</p>
   </main>
