@@ -138,8 +138,34 @@
     <a href="#m4-scale">10 · Scalability</a>
     <a href="#m4-f500">11 · Industry</a>
     <a href="#m4-qa">Interview Q&amp;A</a>
-    <a href="#m5" class="section coming">Module 5 · Insights/Audit/Eval (next)</a>
-    <a href="#more" class="coming">Modules 6–11 (to come)</a>
+    <a href="#m5" class="section">Module 5 · Insights/Audit/Eval</a>
+    <a href="#m5-why">1 · Why</a>
+    <a href="#m5-fit">2 · Where it fits</a>
+    <a href="#m5-comms">3 · Communication</a>
+    <a href="#m5-db">4 · Data</a>
+    <a href="#m5-api">5 · APIs</a>
+    <a href="#m5-flow">6 · Feature flows</a>
+    <a href="#m5-edge">7 · Edge cases</a>
+    <a href="#m5-best">8 · Best practices</a>
+    <a href="#m5-sec">9 · Security</a>
+    <a href="#m5-scale">10 · Scalability</a>
+    <a href="#m5-f500">11 · Industry</a>
+    <a href="#m5-qa">Interview Q&amp;A</a>
+    <a href="#m6" class="section">Module 6 · Memory</a>
+    <a href="#m6-why">1 · Why</a>
+    <a href="#m6-fit">2 · Where it fits</a>
+    <a href="#m6-comms">3 · Communication</a>
+    <a href="#m6-db">4 · Data</a>
+    <a href="#m6-api">5 · APIs</a>
+    <a href="#m6-flow">6 · Remember/recall</a>
+    <a href="#m6-edge">7 · Edge cases</a>
+    <a href="#m6-best">8 · Best practices</a>
+    <a href="#m6-sec">9 · Security</a>
+    <a href="#m6-scale">10 · Scalability</a>
+    <a href="#m6-f500">11 · Industry</a>
+    <a href="#m6-qa">Interview Q&amp;A</a>
+    <a href="#m7" class="section coming">Module 7 · Auth &amp; Identity (next)</a>
+    <a href="#more" class="coming">Modules 8–11 (to come)</a>
   </nav>
 
   <main>
@@ -803,16 +829,247 @@ domain/agents/
       <li>Using the request-scoped DB session in the SSE generator.</li>
     </ul>
 
+    <!-- ===================== MODULE 5 ===================== -->
+    <h2 id="m5">Module 5 — Insights · Audit · Eval</h2>
+    <p class="lead">The <b>value-add layer</b> that turns the indexed code into higher-order artifacts:
+    a generated architecture <b>diagram</b>, a data-driven <b>code map</b>, <b>onboarding docs</b>, a free
+    <b>metrics dashboard</b>, a <b>similar-code</b> finder, <b>test generation</b>, a streaming <b>audit</b>
+    (security/quality review), and a <b>RAG-eval</b> harness. A deliberate mix of <i>free/data-driven</i> and
+    <i>LLM-powered</i> features.</p>
+    <h4>Files in this module</h4>
+    <pre><code>domain/insights/service.py   diagram · codemap · docs · metrics · similar · gen_tests
+domain/audit/service.py      AuditService.run_stream() — fan-out per-file review
+domain/eval/service.py       RagEvalService — LLM-as-judge (faithfulness/relevance/precision)
+api/v1/{insights,audit,eval}.py</code></pre>
+
+    <div class="step" id="m5-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li>Indexed code enables far more than Q&amp;A — <b>diagrams, docs, metrics, reviews, quality scores</b>.</li>
+        <li>These are the <b>portfolio differentiators</b> (the "it audits your whole repo" moment).</li>
+        <li>It proves a key skill: knowing <b>when NOT to use an LLM</b> — metrics, code map, and similar-code are data-driven and free.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "A value-add layer over the index — some features are LLM-generated
+      (diagram, docs, audit, eval), others are pure-data and free (metrics, code map, similar-code)."</div>
+    </div>
+
+    <div class="step" id="m5-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>All three domains <b>consume the index</b> (files/chunks/symbols) and, where needed, the LLM + search.
+      Insights = generative + analytical; Audit = review; Eval = measurement of Module 2's quality.</p>
+    </div>
+
+    <div class="step" id="m5-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>REST for insights + eval; <b>SSE</b> for the audit (one event per reviewed file + a summary). All reuse
+      <code>FileRepo</code>, <code>SearchService</code>, and the LLM provider — no new infrastructure.</p>
+    </div>
+
+    <div class="step" id="m5-db"><span class="num">STEP 4</span><b>Data</b>
+      <p><b>No new tables.</b> Reads <code>repository_files</code> / <code>code_chunks</code> / <code>code_symbols</code>;
+      similar-code uses Qdrant vectors. Metrics is pure SQL aggregation.</p>
+    </div>
+
+    <div class="step" id="m5-api"><span class="num">STEP 5</span><b>APIs</b>
+      <table>
+        <tr><th>Endpoint</th><th>Type</th></tr>
+        <tr><td><code>/insights/{id}/diagram · /codemap · /docs · /metrics</code></td><td>REST</td></tr>
+        <tr><td><code>/insights/{id}/files/{fid}/similar · /tests</code></td><td>REST</td></tr>
+        <tr><td><code>/audit/run/stream</code></td><td>SSE</td></tr>
+        <tr><td><code>/eval/rag</code></td><td>REST</td></tr>
+      </table>
+    </div>
+
+    <div class="step" id="m5-flow"><span class="num">STEP 6</span><b>Feature flows</b>
+      <table>
+        <tr><th>Feature</th><th>How</th><th>LLM?</th></tr>
+        <tr><td>Architecture diagram</td><td>file inventory → LLM → Mermaid (with syntax repair)</td><td>yes</td></tr>
+        <tr><td>Code map</td><td>file tree → Mermaid (data-driven)</td><td><b>no</b></td></tr>
+        <tr><td>Onboarding docs</td><td>inventory → LLM → markdown guide</td><td>yes</td></tr>
+        <tr><td>Metrics</td><td>SQL aggregate (languages, LOC, test ratio, largest files)</td><td><b>no</b></td></tr>
+        <tr><td>Similar-code</td><td>embed a file's chunk → Qdrant kNN → drop same-file</td><td><b>no</b></td></tr>
+        <tr><td>Test-gen</td><td>file content → LLM → test file at a conventional path</td><td>yes</td></tr>
+        <tr><td>Audit</td><td><b>fan-out</b>: review top-N files → severity-scored findings (SSE)</td><td>yes</td></tr>
+        <tr><td>RAG eval</td><td>retrieve+generate → LLM-as-judge: faithfulness/relevance/precision</td><td>yes</td></tr>
+      </table>
+    </div>
+
+    <div class="step" id="m5-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Invalid Mermaid from the LLM</b> — repair common mistakes (<code>-->|x|></code>), and the renderer falls back to raw text.</li>
+        <li><b>No symbols extracted</b> — code map falls back to the file/directory tree.</li>
+        <li><b>Audit token cost</b> — scoped by a <b>depth</b> slider (top 3/6/9/12 files), 8B default.</li>
+        <li><b>Judge parse failure</b> — a forced <code>SCORE:</code> line + defensive parsing.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m5-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Use the LLM only where it adds value</b> — metrics/code-map/similar are free + always work (even when rate-limited).</li>
+        <li><b>Scope token-heavy work</b> — audit depth cap, context budgets.</li>
+        <li><b>Stream long fan-outs</b> — the audit reports file-by-file.</li>
+        <li><b>Reference-free eval</b> — no labels needed to measure RAG quality.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m5-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <ul>
+        <li><b>Ownership</b> — every endpoint authorizes via <code>get_mine</code> (your repos only).</li>
+        <li><b>Generated code is advisory</b> — test-gen output goes through the review/PR flow, not auto-committed.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m5-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <ul>
+        <li><b>Data-driven features are cheap</b> (SQL / vector only) — scale trivially.</li>
+        <li><b>Audit fan-out</b> is sequential today (rate-limit friendly); could parallelize per file.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m5-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>Automated review mirrors <b>CodeRabbit / GitHub Copilot review / Sourcegraph Cody</b>; the eval harness
+      mirrors <b>RAGAS</b> and LLM-as-judge frameworks; the metrics/diagrams echo code-analytics tools. The
+      pattern "index once, then generate many artifacts from it" is exactly how modern code-intelligence
+      products are built.</p>
+    </div>
+
+    <h3 id="m5-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>How do you know your RAG is any good?</summary>
+      A RAG-eval harness (LLM-as-judge) scores faithfulness (grounded?), answer-relevance, and context-precision
+      — reference-free, running the real pipeline, so it catches retrieval AND generation regressions.</details>
+    <details class="qa"><summary>What's the weakness of LLM-as-judge?</summary>
+      Bias (verbosity/position/self-preference) + noise. Mitigate with temperature 0, focused single-metric
+      prompts, structured output; for rigor add a human-labeled golden set.</details>
+    <details class="qa"><summary>Why are some features LLM-free?</summary>
+      Metrics, code-map, and similar-code are pure data (SQL / vector) — cheaper, deterministic, and they work
+      even when the LLM is rate-limited. Knowing when NOT to use an LLM is a design skill.</details>
+    <details class="qa"><summary>How does the audit avoid blowing the token budget?</summary>
+      Scoped by a depth slider (top-N files), defaults to the 8B model, and reuses indexed chunks (no re-clone).</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Using an LLM for things data can do (metrics, code map, similar-code).</li>
+      <li>Unbounded token cost on repo-wide review (depth cap).</li>
+      <li>Treating LLM-judge scores as ground truth.</li>
+      <li>Auto-committing generated tests instead of routing through review.</li>
+    </ul>
+
+    <!-- ===================== MODULE 6 ===================== -->
+    <h2 id="m6">Module 6 — Memory</h2>
+    <p class="lead">Durable, cross-conversation memory: the agent <b>remembers</b> user facts and preferences and
+    <b>recalls</b> the relevant ones on future turns — scoped per user/project, backed by Postgres (truth) +
+    Qdrant (relevance).</p>
+    <h4>Files in this module</h4>
+    <pre><code>domain/memory/
+├── models.py        Memory (scope, content, source, importance, vector_id, access tracking)
+├── repository.py    MemoryRepo (CRUD, find_duplicate, mark_accessed)
+├── schemas.py       MemoryCreate / MemoryRead
+└── service.py       remember() · recall() · forget()
+api/v1/memory.py</code></pre>
+
+    <div class="step" id="m6-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li>An assistant that forgets everything between chats feels dumb. Memory gives <b>continuity</b>.</li>
+        <li>It's a core <b>agentic pillar</b> — agents = tools + memory + planning.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "Durable user/project memory recalled by vector search, with Postgres
+      as the source of truth — so the agent remembers preferences across conversations."</div>
+    </div>
+
+    <div class="step" id="m6-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>Chat (Module 3) <b>auto-captures</b> "remember X" cues and <b>recalls</b> relevant memories into the system
+      prompt each turn. It's a cross-cutting service the agent leans on.</p>
+    </div>
+
+    <div class="step" id="m6-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>Chat calls <code>memory.remember()</code> / <code>recall()</code>; REST exposes CRUD. Recall reads both
+      Postgres (all stored facts) and Qdrant (relevance-ranked) and merges.</p>
+    </div>
+
+    <div class="step" id="m6-db"><span class="num">STEP 4</span><b>Data</b>
+      <table>
+        <tr><th>Field</th><th>Role</th></tr>
+        <tr><td><code>scope</code></td><td>user / project / conversation</td></tr>
+        <tr><td><code>content</code></td><td>the fact</td></tr>
+        <tr><td><code>source</code></td><td>explicit ("remember X") or extracted</td></tr>
+        <tr><td><code>importance</code>, <code>access_count</code></td><td>ranking / usage</td></tr>
+        <tr><td><code>vector_id</code></td><td>the Qdrant point for recall</td></tr>
+      </table>
+    </div>
+
+    <div class="step" id="m6-api"><span class="num">STEP 5</span><b>APIs</b>
+      <p><code>/api/v1/memories</code> — list (by scope), create, delete.</p>
+    </div>
+
+    <div class="step" id="m6-flow"><span class="num">STEP 6</span><b>Remember / recall</b>
+      <ul>
+        <li><b>remember():</b> dedup exact text → embed → upsert to Qdrant with owner/scope payload → store row.</li>
+        <li><b>recall():</b> vector search filtered by owner + scope, mark accessed, sort by score — <i>plus</i> pull stored facts straight from Postgres (source of truth, always available).</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m6-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Duplicate fact</b> — exact-text <code>find_duplicate</code> avoids re-storing.</li>
+        <li><b>Embedding provider switch</b> — vector recall may break, so <b>Postgres is the fallback source of truth</b> (memories still surface).</li>
+        <li><b>No memories</b> — the prompt says "(no stored memories yet)".</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m6-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Postgres = truth, Qdrant = relevance</b> — resilient to embedding changes.</li>
+        <li><b>Scope filters</b> — never leak one user's memory to another.</li>
+        <li><b>Auto-capture cues</b> — "remember that…" saves a durable fact without a separate UI step.</li>
+        <li><b>Cap in the prompt</b> — bounded number of facts folded into the system prompt.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m6-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <ul>
+        <li><b>Owner-scoped</b> — payload filters on owner id; no cross-user recall.</li>
+        <li><b>User-controlled</b> — explicit list/forget so users can see and delete what's stored.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m6-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <ul>
+        <li>Vector recall scales like any ANN; memories are small.</li>
+        <li>Prompt cap keeps token cost bounded regardless of how many facts exist.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m6-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>Agent memory is a hot frontier — <b>MemGPT / Letta</b>, OpenAI's memory feature, and "long-term vs
+      working memory" designs. The advanced path: memory <b>consolidation</b> (summarize + merge), <b>decay</b>
+      (forget stale facts), and conflict resolution — which my LIMITATIONS doc names as future work.</p>
+    </div>
+
+    <h3 id="m6-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>How does memory work here?</summary>
+      remember/recall/forget — recall is a vector search scoped by user/project (Qdrant), plus stored facts from
+      Postgres as the source of truth. Chat auto-captures "remember X" cues.</details>
+    <details class="qa"><summary>Memory vs conversation history — what's the difference?</summary>
+      History is the current thread's messages; memory is <b>durable, cross-conversation</b> facts recalled by
+      relevance, independent of any one chat.</details>
+    <details class="qa"><summary>Why keep Postgres as the source of truth if you have vectors?</summary>
+      Vectors depend on the embedding model; switch providers and recall can break. Postgres always has the facts,
+      so memories still surface — resilience.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Confusing memory with conversation history.</li>
+      <li>Re-storing duplicate facts (exact-text dedup).</li>
+      <li>Relying only on vectors (no source-of-truth fallback).</li>
+      <li>Leaking memories across users (owner-scoped filters).</li>
+    </ul>
+
     <!-- ===================== PLACEHOLDER ===================== -->
-    <h2 id="m5">Module 5 — Insights · Audit · Eval <span class="muted" style="font-size:15px">· coming next</span></h2>
-    <p class="muted" id="more">Next up (Module 5): the <b>generative + analytical</b> features — the LLM
-    architecture diagram / code map / onboarding docs, the free metrics dashboard + similar-code finder,
-    the streaming <b>audit</b> agent, and the <b>RAG-eval</b> harness (LLM-as-judge). Then: memory, auth,
-    GitHub, sandbox, provider abstraction, and observability/deploy.</p>
+    <h2 id="m7">Module 7 — Auth &amp; Identity <span class="muted" style="font-size:15px">· coming next</span></h2>
+    <p class="muted" id="more">Next up (Module 7): <b>auth &amp; identity</b> — Argon2 password hashing, JWT
+    access + rotating refresh tokens, RBAC, and the deny-by-default dependency guards. Then: GitHub
+    integration, the sandbox, the provider abstraction, and observability/deploy.</p>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:40px 0 16px" />
     <p class="muted" style="font-size:13px">Deep-dive study guide · AI Coding Agent ·
-    Modules 1–4 complete (Ingestion, Hybrid Search, Chat Agent, Multi-Agent) · Modules 5–11 to follow. Companion:
+    Modules 1–6 complete · Modules 7–11 to follow. Companion:
     <a href="interview_prep.html">interview_prep.html</a> (study guide + mock) ·
     <a href="../Ai_coding_agent.md">Ai_coding_agent.md</a> (file-by-file).</p>
   </main>
