@@ -112,8 +112,34 @@
     <a href="#m2-scale">10 · Scalability</a>
     <a href="#m2-f500">11 · Industry</a>
     <a href="#m2-qa">Interview Q&amp;A</a>
-    <a href="#m3" class="section coming">Module 3 · Chat Agent (next)</a>
-    <a href="#more" class="coming">Modules 4–11 (to come)</a>
+    <a href="#m3" class="section">Module 3 · Chat Agent</a>
+    <a href="#m3-why">1 · Why</a>
+    <a href="#m3-fit">2 · Where it fits</a>
+    <a href="#m3-comms">3 · Communication</a>
+    <a href="#m3-db">4 · Data &amp; stores</a>
+    <a href="#m3-api">5 · APIs</a>
+    <a href="#m3-flow">6 · Agent loop</a>
+    <a href="#m3-edge">7 · Edge cases</a>
+    <a href="#m3-best">8 · Best practices</a>
+    <a href="#m3-sec">9 · Security</a>
+    <a href="#m3-scale">10 · Scalability</a>
+    <a href="#m3-f500">11 · Industry</a>
+    <a href="#m3-qa">Interview Q&amp;A</a>
+    <a href="#m4" class="section">Module 4 · Multi-Agent</a>
+    <a href="#m4-why">1 · Why</a>
+    <a href="#m4-fit">2 · Where it fits</a>
+    <a href="#m4-comms">3 · Communication</a>
+    <a href="#m4-db">4 · Data &amp; state</a>
+    <a href="#m4-api">5 · APIs</a>
+    <a href="#m4-flow">6 · Pipeline flow</a>
+    <a href="#m4-edge">7 · Edge cases</a>
+    <a href="#m4-best">8 · Best practices</a>
+    <a href="#m4-sec">9 · Security</a>
+    <a href="#m4-scale">10 · Scalability</a>
+    <a href="#m4-f500">11 · Industry</a>
+    <a href="#m4-qa">Interview Q&amp;A</a>
+    <a href="#m5" class="section coming">Module 5 · Insights/Audit/Eval (next)</a>
+    <a href="#more" class="coming">Modules 6–11 (to come)</a>
   </nav>
 
   <main>
@@ -512,17 +538,281 @@ candidates = _rrf_fuse([dense, lexical])                      # rank-based fusio
       <li>Running dense then sparse sequentially instead of in parallel.</li>
     </ul>
 
+    <!-- ===================== MODULE 3 ===================== -->
+    <h2 id="m3">Module 3 — Chat Agent (ReAct loop)</h2>
+    <p class="lead">The conversational front door: a <b>single tool-using agent</b> that answers questions
+    about your code. It grounds in RAG context, can call <b>read-only tools</b>, streams tokens over
+    WebSocket, remembers durable facts, and self-guards against runaway loops.</p>
+    <h4>Files in this module</h4>
+    <pre><code>api/v1/chat.py                    REST CRUD for conversations + WebSocket streaming
+domain/chat/
+├── models.py                     Conversation, Message (role, content, tool_calls, citations)
+├── repository.py                 ConversationRepo, MessageRepo
+├── schemas.py                    WsToken / WsToolCall* / WsCitations / WsDone / WsError
+├── service.py                    ChatService.send_message_streaming()  ← the agent loop
+└── tools.py                      4 read-only tools + dispatch</code></pre>
+
+    <div class="step" id="m3-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li>It's the <b>interactive interface</b> — natural-language Q&amp;A grounded in the user's code, with citations.</li>
+        <li>It's the project's <b>"agent"</b> in the truest sense: the LLM <i>decides</i> whether to call a tool and when it's done.</li>
+        <li>It ties everything together — RAG (Module 2) + tools + streaming + memory in one loop.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "The chat is a ReAct tool-using agent grounded in hybrid
+      retrieval — it reasons, calls read-only tools, and streams a cited answer, with guardrails so a
+      model can't run away."</div>
+    </div>
+
+    <div class="step" id="m3-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>It's a <b>consumer</b> of Module 2 (calls <code>SearchService</code> for RAG context and via the
+      <code>search_code</code> tool), the LLM provider abstraction (Module 10), and memory (Module 6). The
+      transport (<code>api/v1/chat.py</code>) is thin; all logic lives in <code>ChatService</code>.</p>
+    </div>
+
+    <div class="step" id="m3-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p><b>WebSocket</b> (bidirectional — send a message, stream tokens back, allow "stop"). The service is
+      a Python async generator yielding typed events the WS layer serializes:</p>
+      <pre><code>async for event in service.send_message_streaming(user, conv_id, text):
+    await ws.send_json(event.model_dump(mode="json"))   # WsToken / WsToolCallStart / WsCitations / WsDone</code></pre>
+      <div class="callout"><b>Detail:</b> WS auth is via <code>?access_token=</code> — browsers can't set an
+      <code>Authorization</code> header on the WebSocket handshake.</div>
+    </div>
+
+    <div class="step" id="m3-db"><span class="num">STEP 4</span><b>Data &amp; stores</b>
+      <table>
+        <tr><th>Table</th><th>Role</th></tr>
+        <tr><td><code>conversations</code></td><td>owner, title, scoped <code>repository_ids</code>, provider/model</td></tr>
+        <tr><td><code>messages</code></td><td>role (user/assistant/tool), content, <code>tool_calls</code>, <code>citations</code>, token_count</td></tr>
+      </table>
+      <p>Every message — including tool results — is persisted, so a conversation is fully replayable.</p>
+    </div>
+
+    <div class="step" id="m3-api"><span class="num">STEP 5</span><b>APIs</b>
+      <p>REST CRUD under <code>/api/v1/conversations/</code> (create/list/get/rename/delete) + a
+      <b>WebSocket</b> <code>/{id}/ws</code> for streaming a reply.</p>
+    </div>
+
+    <div class="step" id="m3-flow"><span class="num">STEP 6</span><b>The agent loop (ReAct)</b>
+      <ol>
+        <li>Persist the user message; detect <b>chit-chat</b> (skip RAG) or a <b>"remember X"</b> cue (auto-save a memory).</li>
+        <li>Build the prompt: system prompt + <b>RAG context</b> (~1500 tok) + repo inventory + recalled memories + tool defs.</li>
+        <li><b>Stream the LLM.</b> Text deltas → the user; <code>tool_calls</code> → collected.</li>
+        <li>If tool calls: <b>de-dup + cap</b> (2/round, 3/turn), execute, append results, <b>loop</b> (≤5 rounds).</li>
+        <li>No tool calls → that text is the <b>final answer</b>. Persist everything; emit citations.</li>
+      </ol>
+      <div class="pipeline">prompt(RAG + tools) ─▶ stream LLM ─┬─ text ─▶ user
+                                  └─ tool_calls ─▶ execute ─▶ feed back ─▶ (loop ≤5) ─▶ no tool call = done</div>
+    </div>
+
+    <div class="step" id="m3-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Chit-chat</b> ("hi", "thanks") — skip the expensive RAG search + don't offer tools.</li>
+        <li><b>Leaked tool call</b> (a small model writes the call as text) — detected and replaced with a clear message.</li>
+        <li><b>tool_use_failed</b> (Groq can't parse the call) — retry the round <b>without tools</b> so it answers in prose.</li>
+        <li><b>Rate-limit / 413</b> — terminal with a friendly message (don't retry the same oversized request).</li>
+        <li><b>Runaway tool spam</b> — de-dup + caps (the real bug that motivated the guardrails).</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m3-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Thin router / fat service</b> — the WS endpoint just pumps events.</li>
+        <li><b>Stream everything</b> — token-by-token + tool-call + citation events.</li>
+        <li><b>Ground + cite</b> — force <code>file:line</code> citations; preload the repo inventory so paths are real.</li>
+        <li><b>Guardrails</b> — de-dup/cap tool calls, cap result size, handle rate limits gracefully.</li>
+        <li><b>Persist every message</b> (incl. tool) — replayable, auditable.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m3-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <ul>
+        <li><b>Read-only tools</b> — the agent can't mutate state; writes go through gated flows (PR / sandbox).</li>
+        <li><b>Prompt injection</b> — treat retrieved content as untrusted; never execute model output; detect leaked calls.</li>
+        <li><b>Ownership</b> — tools search only the caller's repos; WS auth via signed token.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m3-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <ul>
+        <li><b>Stateless service</b> — scales horizontally; conversation state is in Postgres.</li>
+        <li><b>Token caps</b> (tool caps + context budget) keep each request under the free-tier TPM ceiling.</li>
+        <li>The LLM dominates latency — <b>streaming</b> makes time-to-first-token the felt latency.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m3-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p><b>ReAct</b> (Reason+Act) is <i>the</i> foundational agent pattern — it's what LangChain agents, the
+      OpenAI Agents SDK, and Cursor/Cody's chat all implement under the hood. Production concerns I handle
+      by hand (tool-call caps, graceful degradation, streaming) are exactly what those frameworks provide;
+      I hand-rolled them to own the mechanics + guardrails.</p>
+    </div>
+
+    <h3 id="m3-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>How does the agent loop work, and when does it stop?</summary>
+      Prompt (RAG + tools) → stream LLM → if <code>tool_calls</code>, execute + feed back + loop; when it
+      returns no tool calls, that's the final answer. Hard cap of 5 rounds as a backstop.</details>
+    <details class="qa"><summary>Why are the tools read-only?</summary>
+      A chat agent shouldn't mutate state on a fuzzy instruction. Reads are safe; writes go through explicit,
+      reviewable flows — GitHub PR creation (you review the PR) and the isolated sandbox.</details>
+    <details class="qa"><summary>A model spammed a tool in a loop. What did you do?</summary>
+      De-dup identical calls; cap to 2/round &amp; 3/turn then force a prose answer; cap tool-result size;
+      treat rate-limit/413 as terminal. A <code>tool_use_failed</code> retries once without tools.</details>
+    <details class="qa"><summary>WebSocket vs SSE — why WS here?</summary>
+      Chat is bidirectional/interactive (send, stream, stop) → WebSocket. One-way progress (ingest/agents) → SSE.</details>
+    <details class="qa"><summary>How do you avoid hallucinated file paths?</summary>
+      Force <code>file:line</code> citations from the retrieved context, preload the real file inventory, and
+      detect leaked tool-call text.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Offering tools on every turn (wastes tokens; chit-chat skips them).</li>
+      <li>No stop condition or no round cap (infinite loops).</li>
+      <li>No guardrails against runaway tool calls.</li>
+      <li>Using the request-scoped DB session inside a stream (it gets torn down).</li>
+      <li>Trusting/executing model output directly.</li>
+    </ul>
+
+    <!-- ===================== MODULE 4 ===================== -->
+    <h2 id="m4">Module 4 — Multi-Agent Pipeline</h2>
+    <p class="lead">A <b>structured orchestration</b> for complex questions: a planner decomposes the task,
+    researchers answer each part grounded in code, a synthesizer combines them, and a <b>critic</b>
+    fact-checks — with a <b>Reflexion</b> self-correction loop. Where chat is one agent, this is a
+    coordinated team, streamed stage-by-stage.</p>
+    <h4>Files in this module</h4>
+    <pre><code>api/v1/agents.py                  POST /run · GET /run/stream (SSE)
+domain/agents/
+├── service.py                    AgentOrchestrator — _plan / _research / _synthesize / _review / _refine
+└── schemas.py                    AgentRunRequest/Response, AgentStep, AgentReview</code></pre>
+
+    <div class="step" id="m4-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li>Hard questions benefit from <b>decomposition</b> (sub-questions) + <b>verification</b> (a critic) — a single pass can be confidently wrong.</li>
+        <li>It's the <b>"agentic AI" showpiece</b> — planner/researcher/synthesizer/critic + Reflexion.</li>
+        <li>It reuses the same retrieval + LLM as chat, at a higher level of orchestration.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "It's a planner→researchers→synthesizer→critic pipeline with a
+      Reflexion loop — decompose, ground each part in code, then fact-check and self-correct."</div>
+    </div>
+
+    <div class="step" id="m4-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>A layer <b>above</b> chat: each researcher calls <code>SearchService</code> (Module 2) and the LLM
+      (Module 10). It's <b>stateless</b> — a run reads the index and returns a result; nothing persisted.</p>
+      <div class="callout"><b>Workflow vs agent:</b> chat is an <i>agent</i> (LLM picks the next step); this is
+      a <i>structured orchestration</i> (fixed stages, each powered by an LLM). Both agentic — name the distinction.</div>
+    </div>
+
+    <div class="step" id="m4-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p><b>SSE</b> — each stage is an event streamed to the Agents page. The streaming endpoint opens its
+      <b>own DB session inside the generator</b> (the request-scoped one is torn down before the body runs):</p>
+      <pre><code>async with session_factory() as session:
+    async for event, data in AgentOrchestrator(session).run_stream(user, req):
+        yield {"event": event, "data": json.dumps(data)}   # plan / step / synthesis / review / refining / done</code></pre>
+    </div>
+
+    <div class="step" id="m4-db"><span class="num">STEP 4</span><b>Data &amp; state</b>
+      <p><b>No tables</b> — a run is ephemeral. It reads the index (Qdrant + Postgres via search) and returns
+      an <code>AgentRunResponse</code> (plan, steps, synthesis, review, refined flag).</p>
+    </div>
+
+    <div class="step" id="m4-api"><span class="num">STEP 5</span><b>APIs</b>
+      <table>
+        <tr><th>Endpoint</th><th>Purpose</th></tr>
+        <tr><td><code>POST /api/v1/agents/run</code></td><td>run the whole pipeline, return the full result</td></tr>
+        <tr><td><code>GET /api/v1/agents/run/stream</code></td><td><b>SSE</b> — stream each stage live</td></tr>
+      </table>
+    </div>
+
+    <div class="step" id="m4-flow"><span class="num">STEP 6</span><b>Pipeline flow</b>
+      <ol>
+        <li><b>Planner</b> — task → a few focused sub-questions (JSON).</li>
+        <li><b>Researchers</b> — one per sub-question, each answers grounded in retrieved code (RAG).</li>
+        <li><b>Synthesizer</b> — combine findings into one coherent answer.</li>
+        <li><b>Critic</b> — fact-check the answer against the findings → verdict (accurate / issues / uncertain) + notes.</li>
+        <li><b>Reflexion</b> — if "issues", feed the critique back to revise <b>once</b>, then re-review.</li>
+      </ol>
+      <div class="pipeline">task ─▶ Planner ─▶ Researcher×N (RAG) ─▶ Synthesizer ─▶ Critic ─┬─ accurate ─▶ done
+                                                        └─ issues ─▶ Reflexion(revise once) ─▶ re-review ─▶ done</div>
+    </div>
+
+    <div class="step" id="m4-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>A stage's LLM call fails</b> — guarded: it degrades to a partial result, not a 500.</li>
+        <li><b>No findings</b> (all research empty, often a rate limit) — synthesizer says so plainly.</li>
+        <li><b>Critic uncertain</b> — surfaced as its own verdict, no revision forced.</li>
+        <li><b>Reflexion</b> — bounded to <b>one</b> iteration so it can't spin forever.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m4-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>Guard every LLM call</b> — a failure degrades gracefully.</li>
+        <li><b>Bounded Reflexion</b> — revise once, re-review; never an open loop.</li>
+        <li><b>Reuse retrieval</b> — researchers use the same tuned <code>SearchService</code>.</li>
+        <li><b>Own DB session</b> in the streaming generator.</li>
+        <li><b>Stream stages</b> — the user watches Plan → Research → Synthesize → Critic live.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m4-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <ul>
+        <li><b>Same authz as search</b> — only the caller's <code>ready</code> repos are researched.</li>
+        <li><b>No writes</b> — the pipeline only reads + reasons; it can't mutate anything.</li>
+        <li><b>Token/cost exposure</b> — a run is 5–8 LLM calls; the model defaults to 8B to stay in budget.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m4-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <ul>
+        <li><b>Sequential stages</b> today (rate-limit friendly on the free tier); researchers <b>could</b> run in parallel to cut latency.</li>
+        <li><b>Token cost</b> is the real limit — 5–8 calls per run; mitigated with the 8B default + guarded calls.</li>
+      </ul>
+      <div class="callout"><b>Gold:</b> "How would you speed it up?" → parallelize the independent researchers
+      (they don't depend on each other), at the cost of a burst against the LLM rate limit.</div>
+    </div>
+
+    <div class="step" id="m4-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>Multi-agent orchestration is the frontier: <b>AutoGen</b>, <b>CrewAI</b>, and <b>LangGraph</b> all model
+      planner→worker→critic crews; the <b>Reflexion</b> and <b>self-critique / agent-as-a-judge</b> patterns come
+      straight from the research literature. My pipeline is a hand-rolled version of exactly these patterns, which
+      is why I can explain every stage rather than defer to a framework.</p>
+    </div>
+
+    <h3 id="m4-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>What's the difference between a workflow and an agent?</summary>
+      A workflow has fixed, developer-defined control flow; an agent lets the LLM decide the next step. Chat is
+      an agent; this pipeline is a structured orchestration (fixed stages, each LLM-powered).</details>
+    <details class="qa"><summary>Why add a critic?</summary>
+      A single LLM pass can be confidently wrong. An independent critic fact-checks the answer against the
+      researchers' grounded findings and catches unsupported claims.</details>
+    <details class="qa"><summary>What is Reflexion?</summary>
+      Self-correction from feedback: on a "issues" verdict, feed the critique back to revise the answer once, then
+      re-review. Bounded to one iteration so it can't loop forever.</details>
+    <details class="qa"><summary>How does this differ from the chat agent?</summary>
+      Chat = one LLM-driven tool loop. This = multiple specialized stages orchestrated deterministically, each
+      grounded in retrieval, with verification built in.</details>
+    <details class="qa"><summary>What happens if one stage's LLM call fails?</summary>
+      Every call is guarded — it degrades to a partial result (e.g., a missing researcher finding) rather than
+      crashing the whole run.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Unbounded self-correction loops (Reflexion is capped at one).</li>
+      <li>Trusting a single confidently-wrong pass (the critic verifies).</li>
+      <li>Researchers answering ungrounded (each uses RAG).</li>
+      <li>Crashing the whole run when one stage fails (guarded degradation).</li>
+      <li>Using the request-scoped DB session in the SSE generator.</li>
+    </ul>
+
     <!-- ===================== PLACEHOLDER ===================== -->
-    <h2 id="m3">Module 3 — Chat Agent (ReAct loop) <span class="muted" style="font-size:15px">· coming next</span></h2>
-    <p class="muted" id="more">Next up (Module 3): the <b>chat agent</b> — the ReAct tool-using loop
-    (prompt → tool_calls → execute → feed back → repeat ≤5), the four read-only tools, WebSocket token
-    streaming, memory capture, and the guardrails (tool-call de-dup/caps, rate-limit handling). Then:
-    the multi-agent pipeline, insights/audit/eval, memory, auth, GitHub, sandbox, provider abstraction,
-    and observability/deploy.</p>
+    <h2 id="m5">Module 5 — Insights · Audit · Eval <span class="muted" style="font-size:15px">· coming next</span></h2>
+    <p class="muted" id="more">Next up (Module 5): the <b>generative + analytical</b> features — the LLM
+    architecture diagram / code map / onboarding docs, the free metrics dashboard + similar-code finder,
+    the streaming <b>audit</b> agent, and the <b>RAG-eval</b> harness (LLM-as-judge). Then: memory, auth,
+    GitHub, sandbox, provider abstraction, and observability/deploy.</p>
 
     <hr style="border:none;border-top:1px solid var(--line);margin:40px 0 16px" />
     <p class="muted" style="font-size:13px">Deep-dive study guide · AI Coding Agent ·
-    Modules 1–2 complete (Ingestion, Hybrid Search) · Modules 3–11 to follow. Companion:
+    Modules 1–4 complete (Ingestion, Hybrid Search, Chat Agent, Multi-Agent) · Modules 5–11 to follow. Companion:
     <a href="interview_prep.html">interview_prep.html</a> (study guide + mock) ·
     <a href="../Ai_coding_agent.md">Ai_coding_agent.md</a> (file-by-file).</p>
   </main>
