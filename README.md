@@ -43,8 +43,9 @@ New here? These three cover the project from every angle:
   the flows to trace) plus an interview question bank with model answers.
 
 **Offline study tools** (open the HTML files locally in a browser): `docs/interview_prep.html`
-(illustrated study guide with diagrams) and `docs/mock_interview.html` (interactive
-mock-interview simulator — 50 graded questions, reveal + self-scoring).
+(illustrated study guide with diagrams), `docs/mock_interview.html` (interactive
+mock-interview simulator — 50 graded questions, reveal + self-scoring), and
+`docs/deep_dive.html` (module-by-module deep dive — 11-step breakdown per module + Q&A).
 
 **Engineering deep-dives:** [DECISIONS.md](docs/DECISIONS.md) (design trade-offs — "why X not
 Y") · [LIMITATIONS.md](docs/LIMITATIONS.md) (limitations + future work) ·

@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Coding Agent — Deep Dive &amp; Interview Prep</title>
+<style>
+  :root{
+    --bg:#f6f8fc; --panel:#ffffff; --ink:#12151b; --muted:#5b6472;
+    --line:#e2e7f0; --brand:#1e5eff; --brand2:#7c4dff;
+    --code-bg:#0e1117; --code-ink:#e6edf3;
+    --tip:#e7f6ec; --tip-ink:#1c6b3a; --tip-line:#2e9e5b;
+    --warn:#fdf0e6; --warn-ink:#8a4b12; --warn-line:#e0862a;
+    --note:#e9f0ff; --note-ink:#1c3d8a; --note-line:#1e5eff;
+    --chip:#eef1f7;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#9aa4b2;
+    --line:#243040; --chip:#1f2733;
+    --tip:#10241a; --tip-ink:#7ee2a8; --tip-line:#2e9e5b;
+    --warn:#2a1d10; --warn-ink:#f0b775; --warn-line:#e0862a;
+    --note:#111d33; --note-ink:#9dc0ff; --note-line:#1e5eff;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 "Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.86em;
+    background:var(--chip);padding:.1em .38em;border-radius:5px}
+  pre{background:var(--code-bg);color:var(--code-ink);padding:16px 18px;border-radius:10px;overflow:auto;
+    font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:13.5px;line-height:1.55;border:1px solid #222b38}
+  pre code{background:none;padding:0;color:inherit}
+  .layout{display:flex;max-width:1180px;margin:0 auto}
+  nav.side{position:sticky;top:0;align-self:flex-start;height:100vh;width:250px;flex:0 0 250px;
+    padding:22px 16px;border-right:1px solid var(--line);overflow-y:auto;background:var(--panel)}
+  nav.side h1{font-size:18px;margin:0 0 2px}
+  nav.side .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
+  nav.side a{display:block;color:var(--muted);padding:6px 10px;border-radius:8px;font-size:14px;margin:1px 0}
+  nav.side a:hover{background:var(--chip);text-decoration:none;color:var(--ink)}
+  nav.side a.section{color:var(--ink);font-weight:600;margin-top:12px}
+  nav.side a.coming{opacity:.5;font-style:italic;pointer-events:none}
+  main{flex:1;min-width:0;padding:34px 40px 120px}
+  h2{font-size:26px;margin:8px 0 4px;padding-top:12px;border-bottom:2px solid var(--line);padding-bottom:8px}
+  h3{font-size:19px;margin:26px 0 6px;color:var(--brand)}
+  h4{font-size:15px;margin:18px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  p{margin:8px 0}
+  ul,ol{margin:8px 0 8px 4px;padding-left:22px}
+  li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--chip);font-weight:600}
+  .lead{font-size:17px;color:var(--muted)}
+  .chips span{display:inline-block;background:var(--chip);border:1px solid var(--line);border-radius:999px;
+    padding:3px 11px;margin:3px 4px 3px 0;font-size:12.5px}
+  .callout{border-left:4px solid var(--note-line);background:var(--note);color:var(--note-ink);
+    padding:12px 16px;border-radius:8px;margin:14px 0}
+  .callout.tip{border-color:var(--tip-line);background:var(--tip);color:var(--tip-ink)}
+  .callout.warn{border-color:var(--warn-line);background:var(--warn);color:var(--warn-ink)}
+  .callout b{color:inherit}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0}
+  .step .num{display:inline-block;background:var(--brand);color:#fff;font-weight:700;font-size:12px;
+    padding:3px 9px;border-radius:6px;margin-right:8px;vertical-align:middle}
+  .pipeline{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:16px;overflow:auto;
+    font-family:"JetBrains Mono",monospace;font-size:13px;white-space:pre}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+  .btn{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;
+    padding:7px 14px;font-size:13px;cursor:pointer}
+  .btn:hover{border-color:var(--brand)}
+  .qa{margin:8px 0}
+  .qa summary{cursor:pointer;font-weight:600;padding:8px 0}
+  .qa[open] summary{color:var(--brand)}
+  .muted{color:var(--muted)}
+  @media (max-width:820px){nav.side{display:none}main{padding:20px}}
+  @media print{nav.side{display:none}main{padding:0}body{background:#fff;color:#000;font-size:12px}
+    .step,.callout{break-inside:avoid}pre{white-space:pre-wrap}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="side">
+    <h1>AI Coding Agent · Deep Dive</h1>
+    <div class="sub">Module-by-module study guide &amp; interview ammunition</div>
+    <a href="#overview" class="section">Overview</a>
+    <a href="#stack">Tech stack</a>
+    <a href="#modules">Module map</a>
+    <a href="#lifecycle">Lifecycle &amp; flow</a>
+    <a href="#m1" class="section">Module 1 · Ingestion</a>
+    <a href="#m1-why">1 · Why</a>
+    <a href="#m1-fit">2 · Where it fits</a>
+    <a href="#m1-comms">3 · Communication</a>
+    <a href="#m1-db">4 · Data &amp; stores</a>
+    <a href="#m1-api">5 · APIs</a>
+    <a href="#m1-flow">6 · Pipeline flow</a>
+    <a href="#m1-edge">7 · Edge cases</a>
+    <a href="#m1-best">8 · Best practices</a>
+    <a href="#m1-sec">9 · Security</a>
+    <a href="#m1-scale">10 · Scalability</a>
+    <a href="#m1-f500">11 · Industry</a>
+    <a href="#m1-qa">Interview Q&amp;A</a>
+    <a href="#m2" class="section coming">Module 2 · Hybrid Search (next)</a>
+    <a href="#more" class="coming">Modules 3–11 (to come)</a>
+  </nav>
+
+  <main>
+    <div class="topbar">
+      <div class="muted">AI Coding Agent — agentic RAG platform over your codebase</div>
+      <div>
+        <button class="btn" onclick="toggleTheme()">🌓 Theme</button>
+        <button class="btn" onclick="window.print()">🖨 Print / PDF</button>
+      </div>
+    </div>
+
+    <!-- ===================== OVERVIEW ===================== -->
+    <h2 id="overview">Overview</h2>
+    <p class="lead">A self-hostable <b>agentic RAG platform over your codebase</b>: point it at a
+    GitHub repo, it clones and indexes the code with tree-sitter + embeddings, and then you can
+    <b>search</b> it (hybrid retrieval), <b>chat</b> with a RAG + tool-using agent, run a
+    <b>multi-agent</b> pipeline, audit the code, and open PRs.</p>
+    <p>One sentence drives the design: <i>"an indexing + retrieval + agentic-orchestration system
+    where the quality of retrieval determines the quality of every answer."</i> That makes it a
+    <b>data-pipeline + RAG + agent-loop</b> problem, not a CRUD app.</p>
+
+    <h3 id="stack">Tech stack</h3>
+    <div class="chips">
+      <span>FastAPI (async)</span><span>SQLAlchemy 2.0 · asyncpg</span><span>PostgreSQL</span>
+      <span>Qdrant (vectors)</span><span>Redis</span><span>Celery</span><span>tree-sitter</span>
+      <span>tiktoken</span><span>React + Vite + TS</span><span>TanStack Query · Zustand</span>
+      <span>Ollama / OpenAI / Groq</span><span>local / Jina embeddings</span>
+      <span>Docker / Helm</span><span>Prometheus / Grafana</span>
+    </div>
+
+    <h3 id="modules">Module map</h3>
+    <table>
+      <tr><th>#</th><th>Module</th><th>Responsibility</th></tr>
+      <tr><td>1</td><td><b>Repository Ingestion</b></td><td>clone → tree-sitter parse → AST chunk → embed → index (Qdrant + Postgres)</td></tr>
+      <tr><td>2</td><td>Hybrid Search &amp; RAG</td><td>dense + sparse + RRF fusion + cross-encoder rerank + context packing</td></tr>
+      <tr><td>3</td><td>Chat Agent</td><td>ReAct tool-using loop, streaming, guardrails</td></tr>
+      <tr><td>4</td><td>Multi-Agent Pipeline</td><td>planner → researchers → synthesizer → critic → Reflexion</td></tr>
+      <tr><td>5</td><td>Insights · Audit · Eval</td><td>diagram/code-map/docs/metrics, fan-out review, RAG-eval (LLM-as-judge)</td></tr>
+      <tr><td>6</td><td>Memory</td><td>durable facts, vector recall scoped by user/project</td></tr>
+      <tr><td>7</td><td>Auth &amp; Identity</td><td>JWT + refresh rotation, Argon2, RBAC</td></tr>
+      <tr><td>8</td><td>GitHub Integration</td><td>PR generation + AI code review via PAT</td></tr>
+      <tr><td>9</td><td>Sandbox</td><td>hardened disposable Docker execution + policy gate</td></tr>
+      <tr><td>10</td><td>Provider Abstraction</td><td>pluggable LLM + embedding adapters (ports &amp; adapters)</td></tr>
+      <tr><td>11</td><td>Observability &amp; Deploy</td><td>Prometheus/Grafana, cost accounting, Docker/Helm/free-tier</td></tr>
+    </table>
+
+    <!-- ===================== LIFECYCLE ===================== -->
+    <h2 id="lifecycle">Lifecycle &amp; end-to-end flow</h2>
+    <p>A repo moves through a simple status machine; the interesting flow is the ingestion pipeline
+    that fills the index every other feature reads from.</p>
+    <div class="pipeline">register repo (new) → INGEST → clone → parse → chunk → embed → index → ready
+                      ↳ live progress via Redis pub/sub → SSE</div>
+    <table>
+      <tr><th>Then the index powers…</th><th>Reads from</th></tr>
+      <tr><td>Search</td><td>Qdrant (dense) + Postgres <code>content_tsv</code> (sparse)</td></tr>
+      <tr><td>Chat / Agents</td><td>Search → LLM (RAG context + tools)</td></tr>
+      <tr><td>Insights / Audit / Eval</td><td>files, chunks, symbols + LLM</td></tr>
+    </table>
+    <div class="callout tip">▶️ Trace it in code: <code>api/v1/repositories.py</code> →
+      <code>domain/repositories/service.py</code> → <code>tasks/ingest.py</code> →
+      <code>infrastructure/{git, parsers, embeddings, qdrant}</code></div>
+
+    <!-- ===================== MODULE 1 ===================== -->
+    <h2 id="m1">Module 1 — Repository Ingestion</h2>
+    <p class="lead">Ingestion is the <b>offline indexing pipeline</b> that turns a git repo into a
+    searchable hybrid index. Nothing else works until it runs — search, chat, agents, insights all
+    read what it produces. It's the "Phase 1 of RAG": indexing, done once, ahead of time.</p>
+    <h4>Files in this module</h4>
+    <pre><code>api/v1/repositories.py            enqueue ingest · job status · SSE progress
+domain/repositories/
+├── models.py                     Repository, RepositoryFile, CodeSymbol, CodeChunk, IngestJob
+├── repository.py                 RepositoryRepo, IngestJobRepo, FileRepo (bulk staging)
+├── schemas.py                    RepositoryCreate/Read, IngestJobRead, IngestEvent (SSE)
+└── service.py                    RepositoryService.enqueue_ingest()  ← dispatch
+tasks/ingest.py                   the pipeline (Celery task)
+app/ingest_cli.py                 inline subprocess variant (worker-less / free tier)
+infrastructure/git/clone.py       bounded shallow clone
+infrastructure/parsers/           language.py · tree_sitter.py · chunker.py
+infrastructure/embeddings/        local.py · openai_provider.py (Jina/OpenAI)
+infrastructure/qdrant/client.py   per-repo collection upsert</code></pre>
+
+    <div class="step" id="m1-why"><span class="num">STEP 1</span><b>Why this module exists</b>
+      <ul>
+        <li><b>RAG has two halves</b> — offline <i>indexing</i> and online <i>retrieval</i>. This is the indexing half; without it there's nothing to retrieve.</li>
+        <li>Search, chat, agents, insights, and audit are all <b>consumers</b> of the index it builds. It's upstream of everything.</li>
+        <li>The <b>quality of chunking here caps the quality of every answer</b> downstream — a chunk split mid-function retrieves and grounds poorly.</li>
+      </ul>
+      <div class="callout"><b>One-liner:</b> "Ingestion is the offline pipeline that turns a repo into a
+      searchable hybrid index. It's upstream of every feature, and its chunking quality caps
+      retrieval quality — so it's where the real leverage is."</div>
+    </div>
+
+    <div class="step" id="m1-fit"><span class="num">STEP 2</span><b>Where it fits</b>
+      <p>It's the <b>entry point of the data flow</b> and runs as a <b>background job</b>, not on the
+      web request (cloning + parsing + embedding is slow + CPU-heavy). Two execution modes, one pipeline:</p>
+      <ul>
+        <li><b>Celery task</b> (<code>tasks/ingest.py</code>) — normal, scalable.</li>
+        <li><b>Inline subprocess</b> (<code>app/ingest_cli.py</code>) — free-tier deploy with no worker; its own async engine + event loop so it never reuses the API's pool.</li>
+      </ul>
+      <div class="callout"><b>Key decision:</b> keep heavy work off the request thread. The API just
+      creates a job row and dispatches; the client polls or streams progress.</div>
+    </div>
+
+    <div class="step" id="m1-comms"><span class="num">STEP 3</span><b>How it communicates</b>
+      <p>It's <b>decoupled</b> — it doesn't call other domains synchronously. It:</p>
+      <ul>
+        <li><b>Writes</b> to Postgres (files/symbols/chunks) and Qdrant (vectors).</li>
+        <li><b>Publishes progress</b> to a <b>Redis pub/sub</b> channel keyed by job id.</li>
+        <li>The API's SSE endpoint <b>subscribes</b> to that channel and forwards events to the browser.</li>
+      </ul>
+      <pre><code># worker publishes; the API's /jobs/{id}/events SSE endpoint subscribes
+await redis.publish(f"ingest:events:{job_id}", json.dumps(progress))</code></pre>
+      <div class="callout"><b>Why pub/sub + SSE:</b> the worker and the web process are different
+      processes — Redis is the message bus between them; SSE is one-way progress to the UI.</div>
+    </div>
+
+    <div class="step" id="m1-db"><span class="num">STEP 4</span><b>Data &amp; stores</b>
+      <table>
+        <tr><th>Store / table</th><th>Role</th></tr>
+        <tr><td><code>repositories</code></td><td>the repo + status (new/ingesting/ready/failed)</td></tr>
+        <tr><td><code>ingest_jobs</code></td><td>one row per ingest run + progress counters</td></tr>
+        <tr><td><code>repository_files</code></td><td>path, language, size, line count</td></tr>
+        <tr><td><code>code_symbols</code></td><td>functions/classes/methods + line spans (tree-sitter)</td></tr>
+        <tr><td><code>code_chunks</code></td><td>the embeddable pieces + <code>content_tsv</code> (generated tsvector, GIN index) + <code>vector_id</code></td></tr>
+        <tr><td><b>Qdrant</b></td><td><b>one collection per repo</b> (<code>repo_&lt;uuid&gt;</code>), cosine, HNSW, payload = chunk/file ids + lines</td></tr>
+      </table>
+      <div class="callout warn"><b>Interview detail:</b> chunk <i>content</i> lives in Postgres; Qdrant
+      holds only the vector + a small payload. Search hydrates the full row from Postgres by id —
+      keeping the vector store lean.</div>
+    </div>
+
+    <div class="step" id="m1-api"><span class="num">STEP 5</span><b>APIs</b>
+      <p>Under <code>/api/v1/repositories/</code>:</p>
+      <table>
+        <tr><th>Endpoint</th><th>Purpose</th></tr>
+        <tr><td><code>POST /{id}/ingest</code></td><td>enqueue an ingest job (202)</td></tr>
+        <tr><td><code>GET /{id}/jobs</code>, <code>/{id}/jobs/{jid}</code></td><td>list / poll job status</td></tr>
+        <tr><td><code>GET /{id}/jobs/{jid}/events</code></td><td><b>SSE</b> live progress</td></tr>
+        <tr><td><code>GET /{id}/files</code>, <code>/files/{fid}/chunks</code></td><td>browse the result</td></tr>
+      </table>
+    </div>
+
+    <div class="step" id="m1-flow"><span class="num">STEP 6</span><b>Pipeline flow — clone → parse → chunk → embed → index</b>
+      <ol>
+        <li><b>Trigger:</b> create <code>IngestJob</code> (queued), flip repo → <code>ingesting</code>, commit, dispatch.</li>
+        <li><b>Clone:</b> shallow <code>git clone --depth=1</code> (URL-validated, size-capped, <code>.git</code> removed).</li>
+        <li><b>Walk &amp; filter:</b> skip ignored dirs / oversized / binary; detect language per file.</li>
+        <li><b>Parse:</b> tree-sitter → extract symbols (functions/classes) with line spans.</li>
+        <li><b>Chunk:</b> AST-aware on symbol boundaries, tiktoken-budgeted; oversized symbols → line-window; unsupported langs → plain line-window.</li>
+        <li><b>Embed:</b> batch chunks → embedding provider → one vector each.</li>
+        <li><b>Index:</b> upsert vectors to Qdrant + write files/symbols/chunks to Postgres.</li>
+        <li><b>Publish + finish:</b> stream progress to Redis → SSE; mark job <code>succeeded</code>, repo <code>ready</code>.</li>
+      </ol>
+      <div class="pipeline">clone ──▶ walk/detect ──▶ tree-sitter ──▶ AST chunk ──▶ embed(batch) ──▶ Qdrant + Postgres ──▶ ready
+                                                                              └─ progress ──▶ Redis ──▶ SSE ──▶ UI</div>
+    </div>
+
+    <div class="step" id="m1-edge"><span class="num">STEP 7</span><b>Edge cases</b>
+      <ul>
+        <li><b>Huge repo</b> — bounded clone (depth 1 + size cap) truncates rather than OOM.</li>
+        <li><b>Unsupported language</b> — no tree-sitter grammar → fall back to line-window chunking (still searchable).</li>
+        <li><b>tree-sitter yields no symbols</b> (a prod quirk) — chunking still works via line-window; the code-map feature falls back to the file tree.</li>
+        <li><b>Embedding 429 / rate limit</b> — retry with exponential backoff; batch so one failure doesn't sink the run.</li>
+        <li><b>Re-ingest</b> — currently a full re-index (replaces the repo's data).</li>
+        <li><b>No worker (free tier)</b> — inline subprocess path runs the identical pipeline.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m1-best"><span class="num">STEP 8</span><b>Best practices</b>
+      <ul>
+        <li><b>AST-aware chunking</b> — chunks are whole functions, not arbitrary slices.</li>
+        <li><b>Background job</b> — never block the web request on clone/parse/embed.</li>
+        <li><b>Batch embeddings</b> (≤256) — throughput + rate-limit friendliness.</li>
+        <li><b>Token-budgeted chunks</b> (tiktoken) — predictable embedding + prompt sizes.</li>
+        <li><b>Stream progress</b> — the user sees files/chunks tick up live (SSE).</li>
+        <li><b>Two stores, each best-fit</b> — vectors in Qdrant, text + FTS in Postgres.</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m1-sec"><span class="num">STEP 9</span><b>Security concerns</b>
+      <ul>
+        <li><b>SSRF / malicious URLs</b> — validate the git URL before cloning.</li>
+        <li><b>DoS via huge repos</b> — hard size + depth caps.</li>
+        <li><b>No code execution</b> — ingestion only <i>reads/parses</i> files; it never runs repo code (that's the sandbox's job, isolated).</li>
+        <li><b>Isolation</b> — <code>.git</code> removed post-clone; work in a scoped temp dir.</li>
+        <li><b>Ownership</b> — a user can only ingest repos they own (authz in the service).</li>
+      </ul>
+    </div>
+
+    <div class="step" id="m1-scale"><span class="num">STEP 10</span><b>Scalability</b>
+      <ul>
+        <li><b>Workers scale independently</b> — add Celery workers to parallelize ingestion across repos.</li>
+        <li><b>Batched embeddings</b> — the main cost; batching + backoff keeps within provider limits.</li>
+        <li><b>Per-repo Qdrant collections</b> — smaller HNSW graphs = faster search; drop/rebuild per repo.</li>
+        <li><b>Bottlenecks:</b> embedding rate limits + ingestion memory on giant repos.</li>
+      </ul>
+      <div class="callout"><b>Gold:</b> "How would you make re-ingest cheap?" → <b>Incremental indexing</b> —
+      diff against the last indexed commit SHA and only re-process changed files.</div>
+    </div>
+
+    <div class="step" id="m1-f500"><span class="num">STEP 11</span><b>How industry does it</b>
+      <p>Large code-search systems (GitHub code search / <b>Zoekt</b>, <b>Sourcegraph</b>) run the same
+      shape at scale: parse + index, <b>incremental indexing on every commit</b>, distributed indexers,
+      and trigram/semantic hybrid indexes. Modern "chat with your code" tools (Cursor, Cody) add the
+      embedding + retrieval layer on top — exactly this pipeline. The scaling path from here is
+      <b>incremental ingestion</b> + a distributed indexer pool.</p>
+    </div>
+
+    <h3 id="m1-qa">💬 Interview Q&amp;A</h3>
+    <details class="qa"><summary>Why AST-aware chunking instead of fixed-size?</summary>
+      A chunk should be a semantically whole unit (a function/class). Fixed-size splits functions
+      mid-body, which embeds poorly and breaks grounding. tree-sitter gives real symbol boundaries.</details>
+    <details class="qa"><summary>Why run ingestion as a background job?</summary>
+      Clone + parse + embed is slow and CPU-heavy; doing it on the request would block the API and time
+      out. A job row + Celery/subprocess keeps the API responsive; progress streams via SSE.</details>
+    <details class="qa"><summary>Why one Qdrant collection per repo, not one shared collection?</summary>
+      Isolation (drop/re-ingest = delete a collection), smaller per-repo HNSW graphs (faster), and no
+      cross-repo leakage. Trade-off: cross-repo search must query several collections and merge.</details>
+    <details class="qa"><summary>What if tree-sitter doesn't support a language?</summary>
+      Fall back to line-window chunking — the file is still indexed and searchable, just without
+      symbol-aware boundaries.</details>
+    <details class="qa"><summary>How do you handle a giant repo or a rate-limited embedder?</summary>
+      Bounded clone (depth 1 + size cap); batch embeddings with retry + exponential backoff so a 429
+      doesn't fail the whole run.</details>
+    <details class="qa"><summary>Why store chunk text in Postgres but vectors in Qdrant?</summary>
+      Keep the vector store lean — Qdrant holds the vector + a tiny payload (ids, lines); search
+      hydrates the full content from Postgres by id. Separation of concerns.</details>
+
+    <h4>⚠️ Common mistakes this module avoids</h4>
+    <ul>
+      <li>Fixed-size / character chunking that splits functions mid-body.</li>
+      <li>Running clone/embed synchronously on the web request (blocks + times out).</li>
+      <li>Embedding one chunk at a time (slow, rate-limit-prone) instead of batching.</li>
+      <li>No progress feedback (users stare at a spinner) — solved with pub/sub → SSE.</li>
+      <li>Dumping full chunk text into the vector DB payload (bloats it) instead of hydrating from Postgres.</li>
+    </ul>
+
+    <!-- ===================== PLACEHOLDER ===================== -->
+    <h2 id="m2">Module 2 — Hybrid Search &amp; RAG <span class="muted" style="font-size:15px">· coming next</span></h2>
+    <p class="muted" id="more">The deep dive continues module by module. Next up (Module 2) is the
+    retrieval core — dense (Qdrant kNN) + sparse (Postgres FTS) + <b>RRF fusion</b> + cross-encoder
+    rerank + token-budgeted context packing — with the same 11-step breakdown, code, and interview
+    Q&amp;A. Then: the chat agent loop, the multi-agent pipeline, insights/audit/eval, memory, auth,
+    GitHub, sandbox, provider abstraction, and observability/deploy.</p>
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:40px 0 16px" />
+    <p class="muted" style="font-size:13px">Deep-dive study guide · AI Coding Agent ·
+    Module 1 (Ingestion) complete · Modules 2–11 to follow. Companion:
+    <a href="interview_prep.html">interview_prep.html</a> (study guide + mock) ·
+    <a href="../Ai_coding_agent.md">Ai_coding_agent.md</a> (file-by-file).</p>
+  </main>
+</div>
+
+<script>
+  function toggleTheme(){
+    const r=document.documentElement;
+    const next=r.getAttribute("data-theme")==="dark"?"light":"dark";
+    r.setAttribute("data-theme",next);
+    try{localStorage.setItem("aca-deepdive-theme",next)}catch(e){}
+  }
+  (function(){
+    try{const t=localStorage.getItem("aca-deepdive-theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}
+    const links=[...document.querySelectorAll('nav.side a[href^="#"]')];
+    const map=new Map(links.map(a=>[a.getAttribute("href").slice(1),a]));
+    const obs=new IntersectionObserver((es)=>{
+      es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.style.background="");
+        const a=map.get(e.target.id); if(a)a.style.background="var(--chip)";}});
+    },{rootMargin:"-10% 0px -80% 0px"});
+    document.querySelectorAll("h2[id],h3[id],.step[id]").forEach(el=>obs.observe(el));
+  })();
+</script>
+</body>
+</html>
